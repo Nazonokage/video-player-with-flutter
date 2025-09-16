@@ -5,21 +5,28 @@ import 'package:media_kit_video/media_kit_video.dart' show Video;
 import '../../core/app_state.dart';
 import '../../core/state_store.dart';
 import '../../core/shortcuts.dart';
+import '../../core/playlist_service.dart';
 import '../../widgets/seekbar.dart';
 import '../../widgets/controls_bar.dart';
+import '../../widgets/top_bar.dart';
+
 import 'player_controller.dart' show PlayerController, FullscreenVideoPage;
-import 'overlay_subtitle.dart';
+import 'overlay_subtitle.dart' show showSubtitlesMenu;
+import 'playlist_modal.dart';
+import 'help_dialog.dart';
 
 class PlayerScreen extends StatefulWidget {
   final AppStateModel state;
   final StateStore store;
   final String initialPath;
+  final PlaylistService playlist; // ⬅️ playlist comes from Library
 
   const PlayerScreen({
     super.key,
     required this.state,
     required this.store,
     required this.initialPath,
+    required this.playlist,
   });
 
   @override
@@ -36,7 +43,6 @@ class _PlayerScreenState extends State<PlayerScreen>
   final FocusNode _focusNode = FocusNode(debugLabel: 'player_screen');
   BuildContext? _actionsCtx;
 
-  // Windowed OSD
   String? _osdText;
   late final AnimationController _fadeCtrl;
 
@@ -54,7 +60,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
 
     _open(widget.initialPath);
-
     _saveTimer = Timer.periodic(
       const Duration(seconds: 5),
       (_) => _saveProgress(),
@@ -66,16 +71,40 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Future<void> _open(String path) async {
-    await ctrl.openPath(path, speed: _speed, volume: _volume);
+    // resume from recents if available
+    double? startAtSeconds;
+    for (final r in widget.store.state.recents) {
+      if (r.path == path && r.lastPositionMs > 0) {
+        startAtSeconds = r.lastPositionMs / 1000.0;
+        break;
+      }
+    }
+    await ctrl.openPath(
+      path,
+      speed: _speed,
+      volume: _volume,
+      startAtSeconds: startAtSeconds,
+    );
+
+    // sync playlist index if path exists in playlist
+    final idx = widget.playlist.items.indexOf(path);
+    if (idx >= 0) widget.playlist.setIndex(idx);
   }
 
   Future<void> _saveProgress() async {
-    // optional persistence
+    final path = ctrl.currentPath ?? widget.initialPath;
+    if (path.isEmpty) return;
+    await widget.store.upsertRecent(
+      path: path,
+      positionMs: ctrl.player.state.position.inMilliseconds,
+      durationMs: ctrl.player.state.duration.inMilliseconds,
+    );
   }
 
   @override
   void dispose() {
     _saveTimer?.cancel();
+    _saveProgress();
     ctrl.dispose();
     _fadeCtrl.dispose();
     _focusNode.dispose();
@@ -122,12 +151,33 @@ class _PlayerScreenState extends State<PlayerScreen>
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
-  // central raw-key → intent mapping, then invoke inside Actions
   void _onKey(KeyEvent event) {
     final intent = mapRawKeyToIntent(event);
     if (intent != null && _actionsCtx != null) {
       Actions.invoke(_actionsCtx!, intent);
     }
+  }
+
+  Future<void> _playByIndex(int index) async {
+    widget.playlist.setIndex(index);
+    final path = widget.playlist.currentPath;
+    if (path == null) return;
+    await _open(path);
+    setState(() {});
+  }
+
+  Future<void> _playNext() async {
+    final next = widget.playlist.next();
+    if (next == null) return;
+    await _open(next);
+    setState(() {});
+  }
+
+  Future<void> _playPrev() async {
+    final prev = widget.playlist.previous();
+    if (prev == null) return;
+    await _open(prev);
+    setState(() {});
   }
 
   @override
@@ -191,36 +241,57 @@ class _PlayerScreenState extends State<PlayerScreen>
           child: Builder(
             builder: (ctx) {
               _actionsCtx = ctx;
+
               return Scaffold(
                 backgroundColor: const Color(0xFF0a0f1e),
-                appBar: AppBar(
-                  title: const Text('CleanPlayer'),
-                  actions: [
-                    IconButton(
-                      tooltip: 'Subtitles',
-                      icon: const Icon(Icons.closed_caption),
-                      onPressed: () async {
+                body: Column(
+                  children: [
+                    // Custom top bar
+                    TopBar(
+                      onOpenPlaylist: () async {
+                        await showDialog(
+                          context: context,
+                          builder: (_) => PlaylistModal(
+                            items: widget.playlist.items,
+                            currentIndex: widget.playlist.currentIndex,
+                            onSelect: (i) => _playByIndex(i),
+                          ),
+                        );
+                        if (mounted && !_focusNode.hasFocus) {
+                          _focusNode.requestFocus();
+                        }
+                      },
+                      onOpenSubtitles: () async {
                         final applied = await showSubtitlesMenu(context, ctrl);
                         if (applied && mounted && !_focusNode.hasFocus) {
                           _focusNode.requestFocus();
                         }
                       },
+                      onOpenHelp: () async {
+                        await showDialog(
+                          context: context,
+                          builder: (_) => const HelpDialog(),
+                        );
+                        if (mounted && !_focusNode.hasFocus) {
+                          _focusNode.requestFocus();
+                        }
+                      },
                     ),
-                  ],
-                ),
-                body: Column(
-                  children: [
+
+                    // Video + OSD
                     Expanded(
                       child: Container(
                         margin: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.black,
+                          color: Colors.black.withValues(alpha: .30),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTapDown: (_) {
-                            if (!_focusNode.hasFocus) _focusNode.requestFocus();
+                            if (!_focusNode.hasFocus) {
+                              _focusNode.requestFocus();
+                            }
                           },
                           onTap: _togglePlayPause,
                           child: Stack(
@@ -264,19 +335,21 @@ class _PlayerScreenState extends State<PlayerScreen>
                         ),
                       ),
                     ),
+
+                    // Seekbar
                     StreamBuilder<Duration>(
                       stream: ctrl.positionStream,
                       initialData: Duration.zero,
                       builder: (_, snap) {
                         final pos = snap.data ?? Duration.zero;
+                        final dur = ctrl.player.state.duration;
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: SeekBar(
                             position: pos,
-                            duration: ctrl.duration,
+                            duration: dur,
                             onChanged: (t) {
-                              final targetMs =
-                                  (ctrl.duration.inMilliseconds * t).toInt();
+                              final targetMs = (dur.inMilliseconds * t).toInt();
                               ctrl.player.seek(
                                 Duration(milliseconds: targetMs),
                               );
@@ -285,12 +358,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                         );
                       },
                     ),
+
+                    // Controls
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                       child: ControlsBar(
-                        onPrev: () {}, // wire when playlist is ready
+                        onPrev: _playPrev,
                         onPlayPause: _togglePlayPause,
-                        onNext: () {},
+                        onNext: _playNext,
                         isPlaying: ctrl.player.state.playing,
                         speed: _speed,
                         onSpeed: (v) async {

@@ -1,9 +1,10 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:media_kit/media_kit.dart'; // <-- add this
+import 'package:media_kit/media_kit.dart';
 import 'app.dart';
 
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  MediaKit.ensureInitialized(); // <-- required before using media_kit
-  runApp(const CleanPlayerApp());
+  MediaKit.ensureInitialized(); // important before using Player/Video
+  runApp(const AppRoot());
 }

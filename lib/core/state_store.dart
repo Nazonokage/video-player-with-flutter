@@ -1,29 +1,56 @@
 import 'dart:io';
-import 'dart:convert';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'app_state.dart';
 
 class StateStore {
-  static const _file = 'app_state.json';
-  Future<File> _stateFile() async {
+  AppStateModel state;
+
+  StateStore(this.state);
+
+  static const _fileName = 'app_state.json';
+
+  static Future<File> _file() async {
     final dir = await getApplicationSupportDirectory();
-    return File('${dir.path}/$_file');
-  }
-
-  Future<AppStateModel> load() async {
-    try {
-      final f = await _stateFile();
-      if (!await f.exists()) return AppStateModel.empty();
-      final j = jsonDecode(await f.readAsString()) as Map<String, dynamic>;
-      return AppStateModel.fromJson(j);
-    } catch (_) {
-      return AppStateModel.empty();
+    final f = File(p.join(dir.path, _fileName));
+    if (!await f.exists()) {
+      await f.create(recursive: true);
+      await f.writeAsString(
+        encodeState(
+          AppStateModel(settings: const AppSettings(), recents: const []),
+        ),
+      );
     }
+    return f;
   }
 
-  Future<void> save(AppStateModel s) async {
-    final f = await _stateFile();
-    await f.create(recursive: true);
-    await f.writeAsString(jsonEncode(s.toJson()));
+  static Future<StateStore> load() async {
+    final f = await _file();
+    final text = await f.readAsString();
+    final model = decodeState(text);
+    return StateStore(model);
+  }
+
+  Future<void> save() async {
+    final f = await _file();
+    await f.writeAsString(encodeState(state));
+  }
+
+  Future<void> upsertRecent({
+    required String path,
+    required int positionMs,
+    required int durationMs,
+  }) async {
+    state = state.upsertRecent(
+      path: path,
+      positionMs: positionMs,
+      durationMs: durationMs,
+    );
+    await save();
+  }
+
+  Future<void> clearRecents() async {
+    state = state.clearRecents();
+    await save();
   }
 }

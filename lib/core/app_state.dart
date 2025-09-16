@@ -1,80 +1,107 @@
-class RecentItem {
-  final String path;
-  final double lastPosition; // seconds
-  final double? duration;
-  final DateTime updatedAt;
-  RecentItem({
-    required this.path,
-    required this.lastPosition,
-    this.duration,
-    required this.updatedAt,
-  });
-  RecentItem copyWith({double? lastPosition, double? duration}) => RecentItem(
-    path: path,
-    lastPosition: lastPosition ?? this.lastPosition,
-    duration: duration ?? this.duration,
-    updatedAt: DateTime.now(),
-  );
-  factory RecentItem.fromJson(Map<String, dynamic> j) => RecentItem(
-    path: j['path'],
-    lastPosition: (j['lastPosition'] ?? 0).toDouble(),
-    duration: (j['duration'] as num?)?.toDouble(),
-    updatedAt: DateTime.parse(j['updatedAt']),
-  );
-  Map<String, dynamic> toJson() => {
-    "path": path,
-    "lastPosition": lastPosition,
-    "duration": duration,
-    "updatedAt": updatedAt.toIso8601String(),
-  };
-}
+import 'dart:convert';
 
 class AppSettings {
-  double volume;
-  double speed;
-  String theme;
-  String? lastFolder;
-  AppSettings({
-    this.volume = .8,
-    this.speed = 1.0,
-    this.theme = "dark",
-    this.lastFolder,
-  });
+  final double volume; // 0..1
+  final double speed; // 0.5..2.0
+
+  const AppSettings({this.volume = 0.8, this.speed = 1.0});
+
+  AppSettings copyWith({double? volume, double? speed}) =>
+      AppSettings(volume: volume ?? this.volume, speed: speed ?? this.speed);
+
+  Map<String, dynamic> toJson() => {'volume': volume, 'speed': speed};
+
   factory AppSettings.fromJson(Map<String, dynamic> j) => AppSettings(
-    volume: (j['volume'] ?? .8).toDouble(),
+    volume: (j['volume'] ?? 0.8).toDouble(),
     speed: (j['speed'] ?? 1.0).toDouble(),
-    theme: j['theme'] ?? 'dark',
-    lastFolder: j['lastFolder'],
   );
+}
+
+class RecentItem {
+  final String path;
+  final int lastPositionMs;
+  final int durationMs;
+  final DateTime lastOpenedAt;
+
+  const RecentItem({
+    required this.path,
+    required this.lastPositionMs,
+    required this.durationMs,
+    required this.lastOpenedAt,
+  });
+
+  double get progress =>
+      durationMs > 0 ? (lastPositionMs / durationMs).clamp(0.0, 1.0) : 0.0;
+
   Map<String, dynamic> toJson() => {
-    "volume": volume,
-    "speed": speed,
-    "theme": theme,
-    "lastFolder": lastFolder,
+    'path': path,
+    'lastPositionMs': lastPositionMs,
+    'durationMs': durationMs,
+    'lastOpenedAt': lastOpenedAt.toIso8601String(),
   };
+
+  factory RecentItem.fromJson(Map<String, dynamic> j) => RecentItem(
+    path: j['path'] as String,
+    lastPositionMs: (j['lastPositionMs'] ?? 0) as int,
+    durationMs: (j['durationMs'] ?? 0) as int,
+    lastOpenedAt:
+        DateTime.tryParse(j['lastOpenedAt'] ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+  );
 }
 
 class AppStateModel {
-  AppSettings settings;
-  List<RecentItem> recents;
-  List<String> playlist;
-  AppStateModel({
-    required this.settings,
-    required this.recents,
-    required this.playlist,
-  });
-  factory AppStateModel.empty() =>
-      AppStateModel(settings: AppSettings(), recents: [], playlist: []);
-  factory AppStateModel.fromJson(Map<String, dynamic> j) => AppStateModel(
-    settings: AppSettings.fromJson(j['settings'] ?? {}),
-    recents: ((j['recents'] ?? []) as List)
-        .map((e) => RecentItem.fromJson(e))
-        .toList(),
-    playlist: ((j['playlist'] ?? []) as List).map((e) => e.toString()).toList(),
-  );
+  final AppSettings settings;
+  final List<RecentItem> recents;
+
+  const AppStateModel({required this.settings, required this.recents});
+
+  AppStateModel copyWith({AppSettings? settings, List<RecentItem>? recents}) =>
+      AppStateModel(
+        settings: settings ?? this.settings,
+        recents: recents ?? this.recents,
+      );
+
   Map<String, dynamic> toJson() => {
-    "settings": settings.toJson(),
-    "recents": recents.map((e) => e.toJson()).toList(),
-    "playlist": playlist,
+    'settings': settings.toJson(),
+    'recents': recents.map((e) => e.toJson()).toList(),
   };
+
+  factory AppStateModel.fromJson(Map<String, dynamic> j) => AppStateModel(
+    settings: AppSettings.fromJson(j['settings'] ?? const {}),
+    recents: (j['recents'] as List<dynamic>? ?? [])
+        .map((e) => RecentItem.fromJson(e as Map<String, dynamic>))
+        .toList(),
+  );
+
+  /// Upserts a recent; moves it to top; keeps only N (default 100)
+  AppStateModel upsertRecent({
+    required String path,
+    required int positionMs,
+    required int durationMs,
+    int keep = 100,
+  }) {
+    final now = DateTime.now();
+    final list = List<RecentItem>.from(recents);
+    final idx = list.indexWhere((e) => e.path == path);
+    final item = RecentItem(
+      path: path,
+      lastPositionMs: positionMs,
+      durationMs: durationMs,
+      lastOpenedAt: now,
+    );
+    if (idx >= 0) {
+      list.removeAt(idx);
+    }
+    list.insert(0, item);
+    if (list.length > keep) list.removeRange(keep, list.length);
+    return copyWith(recents: list);
+  }
+
+  AppStateModel clearRecents() => copyWith(recents: []);
 }
+
+/// Convenience (optional)
+String encodeState(AppStateModel state) => jsonEncode(state.toJson());
+AppStateModel decodeState(String text) =>
+    AppStateModel.fromJson(jsonDecode(text));
