@@ -1,0 +1,44 @@
+clean_player/
+├── pubspec.yaml
+├── lib/
+│   ├── main.dart                     // runApp()
+│   ├── app.dart                      // MaterialApp + initial state load
+│   ├── core/
+│   │   ├── app_state.dart            // models: AppSettings, RecentItem, AppStateModel
+│   │   ├── state_store.dart          // JSON read/write (app_state.json in app support dir)
+│   │   ├── playlist_service.dart     // add file(s)/folder, next/prev, reorder helpers
+│   │   ├── subtitle_loader.dart      // parse SRT -> [{startMs,endMs,text}]
+│   │   ├── shortcuts.dart            // keybindings & Actions/Intents for desktop
+│   │   ├── osd_state.dart            // small state holder for time-OSD visibility
+│   │   └── path_utils.dart           // filename from path, ext filters, platform helpers
+│   │
+│   ├── features/
+│   │   ├── library/                  // “Recent / Quick Access” (from dashboard.html)
+│   │   │   ├── library_screen.dart   // shows Recents + big “Open Folder / Open File” CTAs
+│   │   │   ├── recent_tile.dart      // row with title, lastPosition/duration, resume, clear
+│   │   │   └── empty_state.dart      // friendly empty view
+│   │   │
+│   │   ├── player/                   // Player UI (from player.html)
+│   │   │   ├── player_screen.dart    // assemble Video + controls + subtitles overlay + OSD
+│   │   │   ├── player_controller.dart// wraps media_kit Player/VideoController
+│   │   │   ├── overlay_subtitle.dart // paints current SRT line over video
+│   │   │   ├── osd_time_overlay.dart // “T” toggle → on-screen time display near seekbar
+│   │   │   └── playlist_modal.dart   // modal list; jump/select; open CC; remove item
+│   │   │
+│   │   └── settings/
+│   │       └── settings_sheet.dart   // volume default, speed default, theme, “Clear recents”
+│   │
+│   ├── widgets/
+│   │   ├── controls_bar.dart         // play/pause, prev/next, speed, CC, fullscreen
+│   │   ├── seekbar.dart              // position stream + scrub + duration
+│   │   └── volume_slider.dart        // compact volume slider (saves setting)
+│   │
+│   └── bootstrap/
+│       └── providers.dart            // (optional) pass state/store down (Inherited/Provider-lite)
+│
+├── assets/
+│   ├── icons/                        // (optional) CC, folder, play, pause, fullscreen
+│   └── fonts/                        // (optional) mono font for timecodes
+│
+├── test/                             // (optional) tiny tests (SRT parser, shortcuts)
+└── README.md
