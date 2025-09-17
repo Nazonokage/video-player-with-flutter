@@ -28,63 +28,87 @@ class ToggleTimeOsdIntent extends Intent {
   const ToggleTimeOsdIntent();
 }
 
-/// Default key map used by Shortcuts (kept for declarative handling).
+// Extra / new intents
+class ScreenshotIntent extends Intent {
+  const ScreenshotIntent();
+}
+
+class NextItemIntent extends Intent {
+  const NextItemIntent();
+}
+
+class PrevItemIntent extends Intent {
+  const PrevItemIntent();
+}
+
+class NumberSeekIntent extends Intent {
+  final double fraction; // 0.1..0.9
+  const NumberSeekIntent(this.fraction);
+}
+
 final Map<LogicalKeySet, Intent> defaultKeyMap = {
+  // Space = play/pause
   LogicalKeySet(LogicalKeyboardKey.space): const TogglePlayIntent(),
+  // F = fullscreen
   LogicalKeySet(LogicalKeyboardKey.keyF): const FullscreenIntent(),
-  LogicalKeySet(LogicalKeyboardKey.escape): const FullscreenIntent(),
+  // T = toggle time OSD
   LogicalKeySet(LogicalKeyboardKey.keyT): const ToggleTimeOsdIntent(),
+  // Arrow left/right = ±10s
   LogicalKeySet(LogicalKeyboardKey.arrowLeft): const SeekShortIntent(
     Duration(seconds: -10),
   ),
   LogicalKeySet(LogicalKeyboardKey.arrowRight): const SeekShortIntent(
     Duration(seconds: 10),
   ),
+  // Ctrl + Arrow left/right = ±60s
   LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.arrowLeft):
       const SeekLongIntent(Duration(minutes: -1)),
   LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.arrowRight):
       const SeekLongIntent(Duration(minutes: 1)),
+  // Arrow up/down = volume
   LogicalKeySet(LogicalKeyboardKey.arrowUp): const VolumeIntent(0.05),
   LogicalKeySet(LogicalKeyboardKey.arrowDown): const VolumeIntent(-0.05),
+
+  // New: S / N / P / digits 1-9
+  LogicalKeySet(LogicalKeyboardKey.keyS): const ScreenshotIntent(),
+  LogicalKeySet(LogicalKeyboardKey.keyN): const NextItemIntent(),
+  LogicalKeySet(LogicalKeyboardKey.keyP): const PrevItemIntent(),
+
+  LogicalKeySet(LogicalKeyboardKey.digit1): const NumberSeekIntent(0.10),
+  LogicalKeySet(LogicalKeyboardKey.digit2): const NumberSeekIntent(0.20),
+  LogicalKeySet(LogicalKeyboardKey.digit3): const NumberSeekIntent(0.30),
+  LogicalKeySet(LogicalKeyboardKey.digit4): const NumberSeekIntent(0.40),
+  LogicalKeySet(LogicalKeyboardKey.digit5): const NumberSeekIntent(0.50),
+  LogicalKeySet(LogicalKeyboardKey.digit6): const NumberSeekIntent(0.60),
+  LogicalKeySet(LogicalKeyboardKey.digit7): const NumberSeekIntent(0.70),
+  LogicalKeySet(LogicalKeyboardKey.digit8): const NumberSeekIntent(0.80),
+  LogicalKeySet(LogicalKeyboardKey.digit9): const NumberSeekIntent(0.90),
 };
 
-/// Single source of truth for RAW key → Intent mapping (used by KeyboardListener).
-/// This avoids duplicating the logic in every screen and handles Ctrl combos.
+/// Map a keyboard event (KeyDownEvent) to an Intent from [defaultKeyMap].
 Intent? mapRawKeyToIntent(KeyEvent event) {
   if (event is! KeyDownEvent) return null;
 
-  final k = event.logicalKey;
-  final pressed = HardwareKeyboard.instance.logicalKeysPressed;
-  final ctrlDown =
-      pressed.contains(LogicalKeyboardKey.controlLeft) ||
-      pressed.contains(LogicalKeyboardKey.controlRight);
+  final pressed = <LogicalKeyboardKey>{};
+  if (HardwareKeyboard.instance.isControlPressed) {
+    pressed.add(LogicalKeyboardKey.control);
+  }
+  if (HardwareKeyboard.instance.isAltPressed) {
+    pressed.add(LogicalKeyboardKey.alt);
+  }
+  if (HardwareKeyboard.instance.isMetaPressed) {
+    pressed.add(LogicalKeyboardKey.meta);
+  }
+  if (HardwareKeyboard.instance.isShiftPressed) {
+    pressed.add(LogicalKeyboardKey.shift);
+  }
+  pressed.add(event.logicalKey);
 
-  if (k == LogicalKeyboardKey.space) {
-    return const TogglePlayIntent();
-  }
-  if (k == LogicalKeyboardKey.keyF || k == LogicalKeyboardKey.escape) {
-    return const FullscreenIntent();
-  }
-  if (k == LogicalKeyboardKey.keyT) {
-    return const ToggleTimeOsdIntent();
-  }
-  if (ctrlDown && k == LogicalKeyboardKey.arrowLeft) {
-    return const SeekLongIntent(Duration(minutes: -1));
-  }
-  if (ctrlDown && k == LogicalKeyboardKey.arrowRight) {
-    return const SeekLongIntent(Duration(minutes: 1));
-  }
-  if (k == LogicalKeyboardKey.arrowLeft) {
-    return const SeekShortIntent(Duration(seconds: -10));
-  }
-  if (k == LogicalKeyboardKey.arrowRight) {
-    return const SeekShortIntent(Duration(seconds: 10));
-  }
-  if (k == LogicalKeyboardKey.arrowUp) {
-    return const VolumeIntent(0.05);
-  }
-  if (k == LogicalKeyboardKey.arrowDown) {
-    return const VolumeIntent(-0.05);
+  for (final entry in defaultKeyMap.entries) {
+    final combo = entry.key.keys.toSet();
+    if (pressed.length == combo.length && pressed.containsAll(combo)) {
+      return entry.value;
+    }
   }
   return null;
 }

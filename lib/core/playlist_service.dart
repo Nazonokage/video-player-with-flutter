@@ -1,59 +1,50 @@
-import 'package:file_picker/file_picker.dart';
-import 'path_utils.dart';
-
+// lib/core/playlist_service.dart (sketch)
 class PlaylistService {
-  final List<String> _paths = [];
-  int _index = 0;
+  final List<String> items = [];
+  int currentIndex = -1;
 
-  List<String> get items => List.unmodifiable(_paths);
-  int get currentIndex => _index;
-  String? get currentPath => _paths.isEmpty ? null : _paths[_index];
+  String? get currentPath => (currentIndex >= 0 && currentIndex < items.length)
+      ? items[currentIndex]
+      : null;
 
-  void clear() {
-    _paths.clear();
-    _index = 0;
+  void setIndex(int i) => currentIndex = i;
+
+  Future<void> addFiles(List<String> paths) async {
+    for (final p in paths) {
+      if (!items.contains(p)) items.add(p);
+    }
+    if (currentIndex < 0 && items.isNotEmpty) currentIndex = 0;
   }
 
-  void setIndex(int i) {
-    if (i < 0 || i >= _paths.length) return;
-    _index = i;
+  Future<void> removeAt(int i) async {
+    if (i >= 0 && i < items.length) {
+      final removingCurrent = i == currentIndex;
+      items.removeAt(i);
+      if (items.isEmpty) {
+        currentIndex = -1;
+      } else if (removingCurrent) {
+        currentIndex = i.clamp(0, items.length - 1);
+      } else if (i < currentIndex) {
+        currentIndex -= 1;
+      }
+    }
   }
 
-  void addFiles(Iterable<String> paths) {
-    final vids = paths.where(isVideoPath);
-    _paths.addAll(vids);
-    if (_paths.isNotEmpty && _index >= _paths.length) _index = 0;
-  }
-
-  void addFolder(String dirPath) {
-    final vids = listVideosSync(dirPath).map((e) => e.path);
-    addFiles(vids);
+  Future<void> clear() async {
+    items.clear();
+    currentIndex = -1;
   }
 
   String? next() {
-    if (_paths.isEmpty) return null;
-    _index = (_index + 1) % _paths.length;
-    return currentPath;
+    if (items.isEmpty || currentIndex < 0) return null;
+    if (currentIndex + 1 >= items.length) return null;
+    currentIndex += 1;
+    return items[currentIndex];
   }
 
   String? previous() {
-    if (_paths.isEmpty) return null;
-    _index = (_index - 1) < 0 ? _paths.length - 1 : _index - 1;
-    return currentPath;
-  }
-
-  /// UI helpers
-
-  static Future<List<String>> pickFiles() async {
-    final res = await FilePicker.platform.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: kVideoExts.map((e) => e.substring(1)).toList(),
-    );
-    return res?.files.map((e) => e.path).whereType<String>().toList() ?? [];
-  }
-
-  static Future<String?> pickFolder() async {
-    return FilePicker.platform.getDirectoryPath();
+    if (items.isEmpty || currentIndex <= 0) return null;
+    currentIndex -= 1;
+    return items[currentIndex];
   }
 }

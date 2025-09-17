@@ -1,72 +1,71 @@
 import 'package:flutter/material.dart';
 
+/// A simple help/about dialog that lists all keyboard shortcuts.
 class HelpDialog extends StatelessWidget {
   const HelpDialog({super.key});
 
-  Widget _row(String k, String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              k,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      backgroundColor: const Color(0xFF0a0f1e).withValues(alpha: .95),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  const Text(
-                    'Keyboard Shortcuts',
-                    style: TextStyle(
-                      color: Color(0xFF00D4FF),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: Colors.white70),
-                  ),
-                ],
+    final fg = Theme.of(context).colorScheme.onSurface;
+
+    Widget row(String keys, String action) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 140,
+              child: Text(
+                keys,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: fg.withValues(alpha: .85),
+                ),
               ),
-              const SizedBox(height: 8),
-              _row('Space', 'Play / Pause'),
-              _row('← / →', 'Seek ±10s'),
-              _row('Ctrl + ← / →', 'Seek ±1 min'),
-              _row('↑ / ↓', 'Volume up / down'),
-              _row('F / Esc', 'Toggle Fullscreen'),
-              _row('T', 'Show timestamp'),
-              _row('N / P', 'Next / Previous'),
-            ],
-          ),
+            ),
+            Expanded(
+              child: Text(
+                action,
+                style: TextStyle(color: fg.withValues(alpha: .9)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return AlertDialog(
+      title: const Text('Keyboard Shortcuts'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            row('Space', 'Play / Pause'),
+            row('F', 'Toggle fullscreen'),
+            row('Esc', 'Exit fullscreen'),
+            row('T', 'Show current time OSD (2s)'),
+            const Divider(),
+            row('← / →', 'Seek backward / forward 10s'),
+            row('Ctrl + ← / →', 'Seek backward / forward 1 min'),
+            row('1–9', 'Seek to 10% … 90% of video'),
+            const Divider(),
+            row('↑ / ↓', 'Volume up / down'),
+            row('S', 'Take screenshot (saved in Screenshots folder)'),
+            const Divider(),
+            row('N', 'Next item in playlist'),
+            row('P', 'Previous item in playlist'),
+            const Divider(),
+            row('Click right time label', 'Toggle total ↔ remaining'),
+          ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
     );
   }
 }

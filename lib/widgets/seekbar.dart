@@ -3,51 +3,80 @@ import 'package:flutter/material.dart';
 class SeekBar extends StatelessWidget {
   final Duration position;
   final Duration duration;
-  final ValueChanged<double> onChanged; // 0..1
+  final ValueChanged<double> onChanged;
+
+  /// NEW: when true, right label shows remaining time ("-mm:ss"),
+  /// otherwise shows total duration.
+  final bool showRemaining;
+
+  /// NEW: toggle callback when right time text is tapped.
+  final VoidCallback onToggleTimeMode;
 
   const SeekBar({
     super.key,
     required this.position,
     required this.duration,
     required this.onChanged,
+    required this.showRemaining,
+    required this.onToggleTimeMode,
   });
 
   @override
   Widget build(BuildContext context) {
-    final double max = duration.inMilliseconds.toDouble() <= 0
-        ? 1.0
-        : duration.inMilliseconds.toDouble();
-    final double value = position.inMilliseconds
-        .clamp(0, max.toInt())
-        .toDouble();
+    final fg = Colors.white.withValues(alpha: .85);
+    final accent = Theme.of(context).colorScheme.secondary;
+
+    final value = duration.inMilliseconds == 0
+        ? 0.0
+        : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
 
     String fmt(Duration d) {
+      final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+      final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
       final h = d.inHours;
-      final m = d.inMinutes % 60;
-      final s = d.inSeconds % 60;
-      return [
-        if (h > 0) h.toString().padLeft(2, '0'),
-        m.toString().padLeft(2, '0'),
-        s.toString().padLeft(2, '0'),
-      ].join(':');
+      return h > 0 ? '$h:$m:$s' : '$m:$s';
     }
 
-    return Column(
+    final rightText = showRemaining
+        ? '-${fmt(duration - position)}'
+        : fmt(duration);
+
+    return Row(
       children: [
-        Slider(
-          value: value,
-          min: 0.0,
-          max: max,
-          onChanged: (v) => onChanged(v / max),
+        SizedBox(
+          width: 52,
+          child: Text(
+            fmt(position),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: fg, fontSize: 11),
+          ),
         ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(fmt(Duration(milliseconds: value.toInt()))),
-              Text(fmt(duration)),
-            ],
+        Expanded(
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3.0,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+              activeTrackColor: accent,
+              inactiveTrackColor: Colors.white.withValues(alpha: .25),
+              thumbColor: accent,
+            ),
+            child: Slider(value: value, onChanged: onChanged),
+          ),
+        ),
+        SizedBox(
+          width: 52,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(4),
+            onTap: onToggleTimeMode,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                rightText,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: fg, fontSize: 11),
+              ),
+            ),
           ),
         ),
       ],

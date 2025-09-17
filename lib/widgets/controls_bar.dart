@@ -1,3 +1,4 @@
+// lib/widgets/controls_bar.dart
 import 'package:flutter/material.dart';
 
 class ControlsBar extends StatelessWidget {
@@ -33,154 +34,134 @@ class ControlsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primary = theme.colorScheme.secondary;
+    final border = Colors.white.withValues(alpha: .08);
+    final fgWeak = Colors.white.withValues(alpha: .78);
+    final fg = Colors.white.withValues(alpha: .92);
+    final accent = theme.colorScheme.secondary;
 
-    Widget iconBtn(IconData icon, {VoidCallback? onTap, EdgeInsets? pad}) {
-      return InkWell(
-        borderRadius: BorderRadius.circular(8),
+    Widget sIcon(IconData icon, {VoidCallback? onTap, String? tip}) {
+      final btn = InkResponse(
         onTap: onTap,
+        radius: 14,
         child: Padding(
-          padding: pad ?? const EdgeInsets.all(8),
-          child: Icon(
-            icon,
-            size: 22,
-            color: Colors.white.withValues(alpha: 0.9),
-          ),
+          padding: const EdgeInsets.all(3),
+          child: Icon(icon, size: 14, color: fg),
         ),
       );
+      return tip == null ? btn : Tooltip(message: tip, child: btn);
     }
 
-    // Playback controls: ⏮ big play/pause ⏭
-    final playback = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        iconBtn(Icons.skip_previous_rounded, onTap: onPrev),
-        const SizedBox(width: 8),
-        InkWell(
-          onTap: onPlayPause,
-          customBorder: const CircleBorder(),
-          child: Ink(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: primary,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: primary.withValues(alpha: 0.35),
-                  blurRadius: 16,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: Icon(
-              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.black,
-              size: 28,
-            ),
-          ),
+    final playPill = InkWell(
+      onTap: onPlayPause,
+      customBorder: const CircleBorder(),
+      child: Ink(
+        height: 26,
+        width: 26,
+        decoration: ShapeDecoration(color: accent, shape: const CircleBorder()),
+        child: Icon(
+          isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+          size: 16,
+          color: Colors.black,
         ),
-        const SizedBox(width: 8),
-        iconBtn(Icons.skip_next_rounded, onTap: onNext),
-      ],
+      ),
     );
 
-    // Volume controls:  -   80%   +
-    final volPercent = '${(volume * 100).round()}%';
+    final volPct = '${(volume * 100).round()}%';
     final vol = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        InkWell(
+        sIcon(
+          Icons.remove_rounded,
           onTap: () => onVolume((volume - 0.05).clamp(0.0, 1.0)),
-          borderRadius: BorderRadius.circular(8),
-          child: const Padding(
-            padding: EdgeInsets.all(6.0),
-            child: Icon(Icons.remove_rounded, size: 22),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Text(
+            volPct,
+            style: TextStyle(
+              color: fgWeak,
+              fontSize: 10.5,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
         ),
-        const SizedBox(width: 8),
-        Text(
-          volPercent,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            color: Colors.white.withValues(alpha: 0.9),
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
-        ),
-        const SizedBox(width: 8),
-        InkWell(
+        sIcon(
+          Icons.add_rounded,
           onTap: () => onVolume((volume + 0.05).clamp(0.0, 1.0)),
-          borderRadius: BorderRadius.circular(8),
-          child: const Padding(
-            padding: EdgeInsets.all(6.0),
-            child: Icon(Icons.add_rounded, size: 22),
-          ),
         ),
       ],
     );
 
-    // Speed | CC | Fullscreen
-    final speeds = const [0.5, 1.0, 1.5, 2.0];
-    final extras = Row(
+    final speeds = const [0.75, 1.0, 1.25, 1.5, 2.0];
+    final speedBox = Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .08),
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: DropdownButton<double>(
+        value: speed,
+        onChanged: (v) => v == null ? null : onSpeed(v),
+        isDense: true,
+        dropdownColor: const Color(0xFF121829),
+        underline: const SizedBox.shrink(),
+        icon: Icon(Icons.expand_more_rounded, size: 12, color: fgWeak),
+        style: TextStyle(color: fg, fontSize: 10.5),
+        items: [
+          for (final s in speeds)
+            DropdownMenuItem(value: s, child: Text('${s}x')),
+        ],
+      ),
+    );
+
+    final rightCluster = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        speedBox,
+        const SizedBox(width: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          height: 24,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.10),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            borderRadius: BorderRadius.circular(8),
+            color: Colors.white.withValues(alpha: .08),
+            border: Border.all(color: border),
+            borderRadius: BorderRadius.circular(6),
           ),
-          child: DropdownButton<double>(
-            value: speed,
-            onChanged: (v) {
-              if (v != null) onSpeed(v);
-            },
-            dropdownColor: const Color(0xFF1a1a2e),
-            underline: const SizedBox.shrink(),
-            style: const TextStyle(color: Colors.white),
-            items: [
-              for (final s in speeds)
-                DropdownMenuItem(value: s, child: Text('${s}x')),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              sIcon(Icons.closed_caption_rounded, onTap: onToggleSubtitles),
+              Container(width: 1, height: 14, color: border),
+              sIcon(Icons.fit_screen_rounded, onTap: onFullscreen),
             ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        InkWell(
-          onTap: onToggleSubtitles,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Icon(
-              Icons.closed_caption,
-              color: Colors.white.withValues(alpha: 0.9),
-            ),
-          ),
-        ),
-        const SizedBox(width: 4),
-        InkWell(
-          onTap: onFullscreen,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Icon(
-              Icons.fit_screen_rounded,
-              color: Colors.white.withValues(alpha: 0.9),
-            ),
           ),
         ),
       ],
     );
 
     return Container(
+      height: 36, // 🔻 ultra-slim
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        color: Colors.white.withValues(alpha: .025),
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(8),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [playback, vol, extras],
+        children: [
+          Row(
+            children: [
+              sIcon(Icons.skip_previous_rounded, onTap: onPrev),
+              const SizedBox(width: 2),
+              playPill,
+              const SizedBox(width: 2),
+              sIcon(Icons.skip_next_rounded, onTap: onNext),
+            ],
+          ),
+          Expanded(child: Center(child: vol)),
+          rightCluster,
+        ],
       ),
     );
   }
