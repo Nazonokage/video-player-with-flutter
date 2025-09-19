@@ -42,16 +42,8 @@ class TopBar extends StatelessWidget {
           sep,
           _MenuBtn('Help', onTap: onOpenHelp),
           const SizedBox(width: 16),
+
           // window “traffic lights” (cosmetic)
-          Row(
-            children: const [
-              _Dot(color: Color(0xFFFFBD44)),
-              SizedBox(width: 6),
-              _Dot(color: Color(0xFF00CA4E)),
-              SizedBox(width: 6),
-              _Dot(color: Color(0xFFFF605C)),
-            ],
-          ),
         ],
       ),
     );
@@ -78,19 +70,6 @@ class _MenuBtn extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Dot extends StatelessWidget {
-  final Color color;
-  const _Dot({required this.color});
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 10,
-      height: 10,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
   }
 }

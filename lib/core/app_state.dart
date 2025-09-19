@@ -4,7 +4,7 @@ class AppSettings {
   final double volume; // 0..1
   final double speed; // 0.5..2.0
 
-  const AppSettings({this.volume = 0.8, this.speed = 1.0});
+  const AppSettings({this.volume = 0.5, this.speed = 1.0});
 
   AppSettings copyWith({double? volume, double? speed}) =>
       AppSettings(volume: volume ?? this.volume, speed: speed ?? this.speed);

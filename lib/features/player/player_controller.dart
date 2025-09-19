@@ -206,6 +206,7 @@ class PlayerController {
     required void Function(String) onOsd,
     required GlobalKey repaintKey,
     required BuildContext context,
+    required VoidCallback onHelp, // NEW: Add this parameter
     required VoidCallback onNext,
     required VoidCallback onPrev,
     void Function(double newVolume)? onVolumeChanged,
@@ -214,6 +215,13 @@ class PlayerController {
       TogglePlayIntent: CallbackAction<TogglePlayIntent>(
         onInvoke: (_) {
           onTogglePlayPause();
+          return null;
+        },
+      ),
+      HelpIntent: CallbackAction<HelpIntent>(
+        // NEW: Add this action
+        onInvoke: (_) {
+          onHelp();
           return null;
         },
       ),

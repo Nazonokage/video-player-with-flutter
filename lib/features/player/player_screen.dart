@@ -43,11 +43,13 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   late double _speed;
   late double _volume;
+  bool _isPlaying = false; // Track playing state locally
 
   String? _osdText;
   late final AnimationController _fadeCtrl;
   Timer? _saveTimer;
   bool _showRemaining = false;
+  StreamSubscription<bool>? _playingSubscription;
 
   @override
   void initState() {
@@ -72,9 +74,22 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void dispose() {
     _saveTimer?.cancel();
+    _playingSubscription?.cancel();
     ctrl.dispose();
     _fadeCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Setup player state listener
+  void _setupPlayerListener() {
+    _playingSubscription?.cancel();
+    _playingSubscription = ctrl.player.stream.playing.listen((playing) {
+      if (mounted) {
+        setState(() {
+          _isPlaying = playing;
+        });
+      }
+    });
   }
 
   // ── OSD
@@ -97,6 +112,10 @@ class _PlayerScreenState extends State<PlayerScreen>
       speed: _speed,
       volume: _volume,
     );
+
+    // Setup listener after player is initialized
+    _setupPlayerListener();
+
     if (mounted) setState(() {});
   }
 
@@ -136,6 +155,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     return Shortcuts(
       shortcuts: defaultKeyMap,
       child: Actions(
+        // In the buildActions method call in player_screen.dart, add the onHelp parameter:
         actions: ctrl.buildActions(
           onTogglePlayPause: _togglePlayPause,
           onFullscreen: _toggleFullscreen,
@@ -145,6 +165,11 @@ class _PlayerScreenState extends State<PlayerScreen>
           onNext: _playNext,
           onPrev: _playPrev,
           onVolumeChanged: (v) => setState(() => _volume = v),
+          onHelp: () => showDialog(
+            // NEW: Add this parameter
+            context: context,
+            builder: (_) => const HelpDialog(),
+          ),
         ),
         child: Focus(
           autofocus: true,
@@ -173,7 +198,6 @@ class _PlayerScreenState extends State<PlayerScreen>
                           if (selected != null) await _open(selected);
                           setState(() {});
                         },
-                        // NEW: wire add/remove/clear to service
                         onAddFiles: (paths) async {
                           await widget.playlist.addFiles(paths);
                           setState(() {});
@@ -221,7 +245,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                                   vertical: 6,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.78),
+                                  color: Colors.black.withAlpha(200),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Text(
@@ -276,7 +300,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                     onPrev: _playPrev,
                     onPlayPause: _togglePlayPause,
                     onNext: _playNext,
-                    isPlaying: ctrl.player.state.playing,
+                    isPlaying: _isPlaying, // Use the local state variable
                     speed: _speed,
                     onSpeed: (v) async {
                       setState(() => _speed = v);
@@ -318,6 +342,7 @@ class _FullscreenPageState extends State<_FullscreenPage>
     with SingleTickerProviderStateMixin {
   String? _osd;
   late final AnimationController _fadeCtrl;
+  StreamSubscription<bool>? _playingSubscription;
 
   void _flash(String text) {
     setState(() => _osd = text);
@@ -337,10 +362,17 @@ class _FullscreenPageState extends State<_FullscreenPage>
       duration: const Duration(milliseconds: 220),
       reverseDuration: const Duration(milliseconds: 180),
     );
+
+    // Setup player state listener (removed unused _isPlaying assignment)
+    _playingSubscription = widget.ctrl.player.stream.playing.listen((playing) {
+      // We don't need to track playing state here since we're not using ControlsBar
+      // in the fullscreen view, but we keep the subscription to avoid warnings
+    });
   }
 
   @override
   void dispose() {
+    _playingSubscription?.cancel();
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -359,6 +391,7 @@ class _FullscreenPageState extends State<_FullscreenPage>
           onNext: () {},
           onPrev: () {},
           onVolumeChanged: (_) {},
+          onHelp: () {},
         ),
         child: Focus(
           autofocus: true,
@@ -394,7 +427,7 @@ class _FullscreenPageState extends State<_FullscreenPage>
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.78),
+                          color: Colors.black.withAlpha(200),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(

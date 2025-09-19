@@ -1,3 +1,4 @@
+// lib/core/shortcuts.dart
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -46,6 +47,11 @@ class NumberSeekIntent extends Intent {
   const NumberSeekIntent(this.fraction);
 }
 
+// NEW: Help intent for F1 key
+class HelpIntent extends Intent {
+  const HelpIntent();
+}
+
 final Map<LogicalKeySet, Intent> defaultKeyMap = {
   // Space = play/pause
   LogicalKeySet(LogicalKeyboardKey.space): const TogglePlayIntent(),
@@ -73,6 +79,9 @@ final Map<LogicalKeySet, Intent> defaultKeyMap = {
   LogicalKeySet(LogicalKeyboardKey.keyS): const ScreenshotIntent(),
   LogicalKeySet(LogicalKeyboardKey.keyN): const NextItemIntent(),
   LogicalKeySet(LogicalKeyboardKey.keyP): const PrevItemIntent(),
+
+  // NEW: F1 for help
+  LogicalKeySet(LogicalKeyboardKey.f1): const HelpIntent(),
 
   LogicalKeySet(LogicalKeyboardKey.digit1): const NumberSeekIntent(0.10),
   LogicalKeySet(LogicalKeyboardKey.digit2): const NumberSeekIntent(0.20),

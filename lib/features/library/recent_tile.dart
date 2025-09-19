@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
-import '../../core/path_utils.dart';
+import 'package:path/path.dart' as p;
+
 import '../../core/app_state.dart';
 
 class RecentTile extends StatelessWidget {
   final RecentItem item;
-  final VoidCallback onResume;
-  final VoidCallback onClear;
+  final VoidCallback? onTap;
+
+  /// If provided, the tile becomes swipe-to-dismiss (→ calls onDismissed).
+  final VoidCallback? onDismissed;
 
   const RecentTile({
     super.key,
     required this.item,
-    required this.onResume,
-    required this.onClear,
+    this.onTap,
+    this.onDismissed,
   });
 
-  String _fmt(int ms) {
-    final d = Duration(milliseconds: ms);
+  String _fmtTime(Duration d) {
     final h = d.inHours;
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -24,64 +26,52 @@ class RecentTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = filenameOf(item.path);
-    final progress = item.progress;
+    final name = p.basename(item.path);
+    final pos = Duration(milliseconds: item.lastPositionMs);
+    final dur = Duration(milliseconds: item.durationMs);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+    final tile = Material(
+      color: Colors.white.withValues(alpha: 0.03),
+      borderRadius: BorderRadius.circular(10),
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        onTap: onTap,
+        title: Text(
+          name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        subtitle: Text(
+          'Resume at ${_fmtTime(pos)} • Total ${_fmtTime(dur)}',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+        ),
+        trailing: const Icon(Icons.play_arrow_rounded, color: Colors.white),
       ),
-      child: Row(
-        children: [
-          // file name + position
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '${_fmt(item.lastPositionMs)} / ${_fmt(item.durationMs)}',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7),
-                    fontSize: 12,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    minHeight: 4,
-                    color: const Color(0xFF00d4ff),
-                    backgroundColor: Colors.white.withValues(alpha: 0.1),
-                  ),
-                ),
-              ],
-            ),
+    );
+
+    // If onDismissed is not provided, render a plain tile (no swipe).
+    if (onDismissed == null) {
+      return Padding(padding: const EdgeInsets.only(bottom: 8), child: tile);
+    }
+
+    // Swipe-to-dismiss (slide left background).
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Dismissible(
+        key: ValueKey(item.path),
+        direction: DismissDirection.endToStart,
+        onDismissed: (_) => onDismissed!.call(),
+        background: Container(
+          decoration: BoxDecoration(
+            color: Colors.red.withValues(alpha: 0.75),
+            borderRadius: BorderRadius.circular(10),
           ),
-          const SizedBox(width: 10),
-          FilledButton(onPressed: onResume, child: const Text('Resume')),
-          const SizedBox(width: 6),
-          IconButton(
-            tooltip: 'Remove from Recents',
-            onPressed: onClear,
-            icon: const Icon(Icons.clear_rounded),
-          ),
-        ],
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 16),
+          child: const Icon(Icons.delete, color: Colors.white),
+        ),
+        child: tile,
       ),
     );
   }

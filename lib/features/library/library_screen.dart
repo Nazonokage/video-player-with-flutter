@@ -7,6 +7,7 @@ import '../../core/app_state.dart';
 import '../../core/state_store.dart';
 import '../../core/playlist_service.dart';
 import '../player/player_screen.dart';
+import 'recent_tile.dart';
 
 class LibraryScreen extends StatefulWidget {
   final AppStateModel state;
@@ -37,12 +38,26 @@ class _LibraryScreenState extends State<LibraryScreen> {
     'ts',
     'm2ts',
     '3gp',
-    // optional audio
-    'mp3', 'aac', 'flac', 'wav', 'ogg', 'm4a',
+    'mp3',
+    'aac',
+    'flac',
+    'wav',
+    'ogg',
+    'm4a',
   };
+
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
+  late List<RecentItem> _items;
 
   String _norm(String s) => s.replaceAll('\\', '/').toLowerCase();
 
+  @override
+  void initState() {
+    super.initState();
+    _items = List.of(widget.store.state.recents);
+  }
+
+  // ---------- Pickers ----------
   Future<void> _openFilePicker() async {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
@@ -55,8 +70,6 @@ class _LibraryScreenState extends State<LibraryScreen> {
     if (paths.isEmpty) return;
 
     await widget.playlist.addFiles(paths);
-
-    // If nothing is playing yet, open the first one.
     final first = widget.playlist.currentPath ?? paths.first;
     if (!mounted) return;
     await Navigator.of(context).push(
@@ -88,11 +101,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     final videoFiles = <String>[];
     for (final f in files) {
       final ext = p.extension(f.path).replaceFirst('.', '').toLowerCase();
-      if (_videoExts.contains(ext)) {
-        videoFiles.add(f.path);
-      }
+      if (_videoExts.contains(ext)) videoFiles.add(f.path);
     }
-
     if (videoFiles.isEmpty) return;
 
     videoFiles.sort((a, b) => p.basename(a).compareTo(p.basename(b)));
@@ -113,8 +123,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
     setState(() {});
   }
 
-  void _openRecent(RecentItem r) async {
-    // Ensure recent exists in playlist, add if missing & set index.
+  // ---------- Open a recent ----------
+  Future<void> _openRecent(RecentItem r) async {
     final i = widget.playlist.items.indexWhere(
       (e) => _norm(e) == _norm(r.path),
     );
@@ -135,21 +145,103 @@ class _LibraryScreenState extends State<LibraryScreen> {
     setState(() {});
   }
 
+  // ---------- Remove one with AnimatedList animation ----------
+  Future<void> _removeOne(int index) async {
+    final removed = _items.removeAt(index);
+
+    // Animate slide-left + fade + collapse height
+    _listKey.currentState?.removeItem(
+      index,
+      (context, animation) => _buildAnimatedTile(context, removed, animation),
+      duration: const Duration(milliseconds: 300),
+    );
+
+    // Persist removal
+    await widget.store.removeRecent(removed.path);
+  }
+
+  // ---------- Clear all with staggered animation ----------
   Future<void> _clearRecents() async {
+    if (_items.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1a2235),
+        title: const Text(
+          'Clear Recents?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'This will delete all your recent items from local storage.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Clear', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final total = _items.length;
+    for (int i = total - 1; i >= 0; i--) {
+      await Future.delayed(const Duration(milliseconds: 50)); // staggered
+      final removed = _items.removeAt(i);
+      _listKey.currentState?.removeItem(
+        i,
+        (context, animation) => _buildAnimatedTile(context, removed, animation),
+        duration: const Duration(milliseconds: 300),
+      );
+    }
     await widget.store.clearRecents();
-    if (mounted) setState(() {});
+  }
+
+  // ---------- Builder used during removal animation ----------
+  Widget _buildAnimatedTile(
+    BuildContext context,
+    RecentItem r,
+    Animation<double> anim,
+  ) {
+    // CSS-like feel from your HTML: translateX(-100%) + fade + collapse
+    final slide = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-0.25, 0),
+    ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOut));
+    final fade = CurvedAnimation(parent: anim, curve: Curves.easeOut);
+
+    return SizeTransition(
+      sizeFactor: fade,
+      axisAlignment: 1.0,
+      child: SlideTransition(
+        position: slide,
+        child: Opacity(
+          opacity: fade.value,
+          child: RecentTile(
+            item: r,
+            onTap: () => _openRecent(r),
+            // During the closing animation, we don't want a second dismiss:
+            onDismissed: null,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final recents = widget.store.state.recents;
-
     return Scaffold(
       backgroundColor: const Color(0xFF0a0f1e),
       body: SafeArea(
         child: Column(
           children: [
-            // Header + Quick actions
+            // Header + actions
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(
@@ -205,68 +297,34 @@ class _LibraryScreenState extends State<LibraryScreen> {
               ),
             ),
 
-            // Recents list
+            // Animated Recents
             Expanded(
-              child: recents.isEmpty
+              child: _items.isEmpty
                   ? const _EmptyState()
-                  : ListView.separated(
+                  : AnimatedList(
+                      key: _listKey,
+                      initialItemCount: _items.length,
                       padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-                      itemCount: recents.length,
-                      itemBuilder: (_, i) {
-                        final r = recents[i];
-                        final name = p.basename(r.path);
-                        final pos = Duration(milliseconds: r.lastPositionMs);
-                        final dur = Duration(milliseconds: r.durationMs);
-                        final ts = _fmtTime(pos);
-                        final ds = _fmtTime(dur);
-
-                        return Material(
-                          color: Colors.white.withValues(alpha: 0.03),
-                          borderRadius: BorderRadius.circular(10),
-                          child: ListTile(
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                      itemBuilder: (context, index, animation) {
+                        final r = _items[index];
+                        return SizeTransition(
+                          sizeFactor: CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOut,
+                          ),
+                          child: RecentTile(
+                            item: r,
                             onTap: () => _openRecent(r),
-                            title: Text(
-                              name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                            subtitle: Text(
-                              'Resume at $ts • Total $ds',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.7),
-                              ),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(
-                                Icons.play_arrow_rounded,
-                                color: Colors.white,
-                              ),
-                              onPressed: () => _openRecent(r),
-                            ),
+                            onDismissed: () => _removeOne(index),
                           ),
                         );
                       },
-                      separatorBuilder: (_, __) => const SizedBox(height: 8),
                     ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  String _fmtTime(Duration d) {
-    final h = d.inHours;
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 }
 
@@ -280,27 +338,14 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
+          children: const [
+            Icon(
               Icons.video_collection_rounded,
               size: 56,
               color: Colors.white38,
             ),
-            const SizedBox(height: 14),
-            const Text(
-              'No recents yet',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Use “Open File(s)” to start watching or “Open Folder” to build a playlist from a directory.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
-            ),
+            SizedBox(height: 14),
+            Text('No recents yet', style: TextStyle(color: Colors.white54)),
           ],
         ),
       ),

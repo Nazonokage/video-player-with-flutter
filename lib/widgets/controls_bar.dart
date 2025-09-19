@@ -34,34 +34,82 @@ class ControlsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final border = Colors.white.withValues(alpha: .08);
-    final fgWeak = Colors.white.withValues(alpha: .78);
-    final fg = Colors.white.withValues(alpha: .92);
+    final border = Colors.white.withAlpha(20);
+    final fgWeak = Colors.white.withAlpha(200);
+    final fg = Colors.white;
     final accent = theme.colorScheme.secondary;
 
-    Widget sIcon(IconData icon, {VoidCallback? onTap, String? tip}) {
-      final btn = InkResponse(
-        onTap: onTap,
-        radius: 14,
-        child: Padding(
-          padding: const EdgeInsets.all(3),
-          child: Icon(icon, size: 14, color: fg),
+    Widget sIcon(
+      IconData icon, {
+      VoidCallback? onTap,
+      String? tip,
+      double size = 16,
+    }) {
+      return Tooltip(
+        message: tip ?? '',
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: TweenAnimationBuilder(
+            duration: const Duration(milliseconds: 150),
+            tween: Tween<double>(begin: 1.0, end: 1.0),
+            builder: (context, double scale, child) {
+              return Transform.scale(scale: scale, child: child);
+            },
+            child: GestureDetector(
+              onTap: onTap,
+              child: MouseRegion(
+                onEnter: (event) {},
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Icon(icon, size: size, color: fg),
+                ),
+              ),
+            ),
+          ),
         ),
       );
-      return tip == null ? btn : Tooltip(message: tip, child: btn);
     }
 
-    final playPill = InkWell(
-      onTap: onPlayPause,
-      customBorder: const CircleBorder(),
-      child: Ink(
-        height: 26,
-        width: 26,
-        decoration: ShapeDecoration(color: accent, shape: const CircleBorder()),
-        child: Icon(
-          isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-          size: 16,
-          color: Colors.black,
+    final playPill = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: TweenAnimationBuilder(
+        duration: const Duration(milliseconds: 100),
+        tween: Tween<double>(begin: 1.0, end: 1.0),
+        builder: (context, double scale, child) {
+          return Transform.scale(scale: scale, child: child);
+        },
+        child: GestureDetector(
+          onTap: onPlayPause,
+          child: Container(
+            height: 28,
+            width: 28,
+            decoration: BoxDecoration(
+              color: accent,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withAlpha(100),
+                  blurRadius: 6,
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(scale: animation, child: child);
+              },
+              child: Icon(
+                key: ValueKey<bool>(isPlaying),
+                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                size: 16,
+                color: Colors.black,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -73,14 +121,17 @@ class ControlsBar extends StatelessWidget {
         sIcon(
           Icons.remove_rounded,
           onTap: () => onVolume((volume - 0.05).clamp(0.0, 1.0)),
+          tip: 'Decrease volume',
+          size: 18,
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
           child: Text(
             volPct,
             style: TextStyle(
               color: fgWeak,
-              fontSize: 10.5,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
@@ -88,52 +139,73 @@ class ControlsBar extends StatelessWidget {
         sIcon(
           Icons.add_rounded,
           onTap: () => onVolume((volume + 0.05).clamp(0.0, 1.0)),
+          tip: 'Increase volume',
+          size: 18,
         ),
       ],
     );
 
     final speeds = const [0.75, 1.0, 1.25, 1.5, 2.0];
-    final speedBox = Container(
-      height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .08),
-        border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: DropdownButton<double>(
-        value: speed,
-        onChanged: (v) => v == null ? null : onSpeed(v),
-        isDense: true,
-        dropdownColor: const Color(0xFF121829),
-        underline: const SizedBox.shrink(),
-        icon: Icon(Icons.expand_more_rounded, size: 12, color: fgWeak),
-        style: TextStyle(color: fg, fontSize: 10.5),
-        items: [
-          for (final s in speeds)
-            DropdownMenuItem(value: s, child: Text('${s}x')),
-        ],
+    final speedBox = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: Container(
+        height: 26,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(20),
+          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<double>(
+            value: speed,
+            onChanged: (v) => v == null ? null : onSpeed(v),
+            isDense: true,
+            dropdownColor: const Color(0xFF121829),
+            icon: Icon(Icons.expand_more_rounded, size: 16, color: fgWeak),
+            style: TextStyle(
+              color: fg,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+            ),
+            items: [
+              for (final s in speeds)
+                DropdownMenuItem(
+                  value: s,
+                  child: Text('${s}x', style: TextStyle(fontSize: 11)),
+                ),
+            ],
+          ),
+        ),
       ),
     );
 
     final rightCluster = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        speedBox,
-        const SizedBox(width: 6),
+        Tooltip(message: 'Playback speed', child: speedBox),
+        const SizedBox(width: 8),
         Container(
-          height: 24,
+          height: 26,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .08),
+            color: Colors.white.withAlpha(20),
             border: Border.all(color: border),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              sIcon(Icons.closed_caption_rounded, onTap: onToggleSubtitles),
-              Container(width: 1, height: 14, color: border),
-              sIcon(Icons.fit_screen_rounded, onTap: onFullscreen),
+              sIcon(
+                Icons.closed_caption_rounded,
+                onTap: onToggleSubtitles,
+                tip: 'Toggle subtitles',
+              ),
+              Container(width: 1, height: 16, color: border),
+              sIcon(
+                Icons.fit_screen_rounded,
+                onTap: onFullscreen,
+                tip: 'Fullscreen',
+              ),
             ],
           ),
         ),
@@ -141,22 +213,33 @@ class ControlsBar extends StatelessWidget {
     );
 
     return Container(
-      height: 36, // 🔻 ultra-slim
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: .025),
+        color: Colors.black.withAlpha(100),
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(80),
+            blurRadius: 12,
+            spreadRadius: 2,
+          ),
+        ],
       ),
       child: Row(
         children: [
           Row(
             children: [
-              sIcon(Icons.skip_previous_rounded, onTap: onPrev),
-              const SizedBox(width: 2),
+              sIcon(
+                Icons.skip_previous_rounded,
+                onTap: onPrev,
+                tip: 'Previous',
+              ),
+              const SizedBox(width: 4),
               playPill,
-              const SizedBox(width: 2),
-              sIcon(Icons.skip_next_rounded, onTap: onNext),
+              const SizedBox(width: 4),
+              sIcon(Icons.skip_next_rounded, onTap: onNext, tip: 'Next'),
             ],
           ),
           Expanded(child: Center(child: vol)),

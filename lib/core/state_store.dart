@@ -5,8 +5,9 @@ import 'app_state.dart';
 
 class StateStore {
   AppStateModel state;
+  bool recoveredFromCorruption;
 
-  StateStore(this.state);
+  StateStore(this.state, {this.recoveredFromCorruption = false});
 
   static const _fileName = 'app_state.json';
 
@@ -26,9 +27,23 @@ class StateStore {
 
   static Future<StateStore> load() async {
     final f = await _file();
-    final text = await f.readAsString();
-    final model = decodeState(text);
-    return StateStore(model);
+    try {
+      final text = await f.readAsString();
+      final model = decodeState(text);
+      return StateStore(model);
+    } catch (e) {
+      // If reading or decoding fails, reset to a safe default & flag recovery.
+      final fallback = AppStateModel(
+        settings: const AppSettings(),
+        recents: const [],
+      );
+      try {
+        await f.writeAsString(encodeState(fallback));
+      } catch (_) {
+        // Ignore secondary errors; we'll still return the fallback in-memory state.
+      }
+      return StateStore(fallback, recoveredFromCorruption: true);
+    }
   }
 
   Future<void> save() async {
@@ -51,6 +66,19 @@ class StateStore {
 
   Future<void> clearRecents() async {
     state = state.clearRecents();
+    await save();
+  }
+
+  Future<void> removeRecent(String path) async {
+    // Remove by normalized path to avoid slash / case variations.
+    String norm(String s) => s.replaceAll('\\', '/').toLowerCase();
+
+    final filtered = state.recents
+        .where((r) => norm(r.path) != norm(path))
+        .toList();
+    if (filtered.length == state.recents.length) return; // nothing to remove
+
+    state = state.copyWith(recents: filtered);
     await save();
   }
 }
