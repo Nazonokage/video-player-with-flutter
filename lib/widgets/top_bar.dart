@@ -2,14 +2,22 @@ import 'package:flutter/material.dart';
 
 class TopBar extends StatelessWidget {
   final VoidCallback onOpenPlaylist;
-  final VoidCallback onOpenSubtitles;
   final VoidCallback onOpenHelp;
+  final VoidCallback onOpenSubtitles;
+  final VoidCallback onVolumeEnhancement;
+  final VoidCallback onOpenAudioTracks;
+  final VoidCallback onOpenSettings;
+  final VoidCallback? onLogoClick;
 
   const TopBar({
     super.key,
     required this.onOpenPlaylist,
-    required this.onOpenSubtitles,
     required this.onOpenHelp,
+    required this.onOpenSubtitles,
+    required this.onVolumeEnhancement,
+    required this.onOpenAudioTracks,
+    required this.onOpenSettings,
+    this.onLogoClick,
   });
 
   @override
@@ -26,19 +34,37 @@ class TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Text(
-            'CleanPlayer',
-            style: TextStyle(
-              color: Color(0xFF00D4FF),
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-              letterSpacing: .3,
+          GestureDetector(
+            onTap: onLogoClick,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(4),
+                color: onLogoClick != null 
+                    ? Colors.white.withValues(alpha: 0.1)
+                    : Colors.transparent,
+              ),
+              child: const Text(
+                'CleanPlayer',
+                style: TextStyle(
+                  color: Color(0xFF00D4FF),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                  letterSpacing: .3,
+                ),
+              ),
             ),
           ),
           const Spacer(),
           _MenuBtn('Playlist', onTap: onOpenPlaylist),
           sep,
           _MenuBtn('Subtitles', onTap: onOpenSubtitles),
+          sep,
+          _MenuBtn('Audio Tracks', onTap: onOpenAudioTracks),
+          sep,
+          _MenuBtn('Audio', onTap: onVolumeEnhancement),
+          sep,
+          _MenuBtn('Settings', onTap: onOpenSettings),
           sep,
           _MenuBtn('Help', onTap: onOpenHelp),
           const SizedBox(width: 16),

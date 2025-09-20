@@ -14,7 +14,6 @@ class ControlsBar extends StatelessWidget {
   final double volume; // 0.0 - 1.0
   final ValueChanged<double> onVolume;
 
-  final VoidCallback onToggleSubtitles;
   final VoidCallback onFullscreen;
 
   const ControlsBar({
@@ -27,7 +26,6 @@ class ControlsBar extends StatelessWidget {
     required this.onSpeed,
     required this.volume,
     required this.onVolume,
-    required this.onToggleSubtitles,
     required this.onFullscreen,
   });
 
@@ -195,12 +193,6 @@ class ControlsBar extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              sIcon(
-                Icons.closed_caption_rounded,
-                onTap: onToggleSubtitles,
-                tip: 'Toggle subtitles',
-              ),
-              Container(width: 1, height: 16, color: border),
               sIcon(
                 Icons.fit_screen_rounded,
                 onTap: onFullscreen,

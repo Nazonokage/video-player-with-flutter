@@ -7,18 +7,21 @@ import '../../core/app_state.dart';
 import '../../core/state_store.dart';
 import '../../core/playlist_service.dart';
 import '../player/player_screen.dart';
+import '../player/player_controller.dart';
 import 'recent_tile.dart';
 
 class LibraryScreen extends StatefulWidget {
   final AppStateModel state;
   final StateStore store;
   final PlaylistService playlist;
+  final ValueChanged<String>? onOpenFile;
 
   const LibraryScreen({
     super.key,
     required this.state,
     required this.store,
     required this.playlist,
+    this.onOpenFile,
   });
 
   @override
@@ -72,16 +75,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
     await widget.playlist.addFiles(paths);
     final first = widget.playlist.currentPath ?? paths.first;
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          state: widget.state,
-          store: widget.store,
-          initialPath: first,
-          playlist: widget.playlist,
+    
+    if (widget.onOpenFile != null) {
+      widget.onOpenFile!(first);
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlayerScreen(
+            state: widget.state,
+            store: widget.store,
+            initialPath: first,
+            playlist: widget.playlist,
+            controller: PlayerController(),
+          ),
         ),
-      ),
-    );
+      );
+    }
     setState(() {});
   }
 
@@ -110,16 +119,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
     final first = widget.playlist.currentPath ?? videoFiles.first;
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          state: widget.state,
-          store: widget.store,
-          initialPath: first,
-          playlist: widget.playlist,
+    
+    if (widget.onOpenFile != null) {
+      widget.onOpenFile!(first);
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlayerScreen(
+            state: widget.state,
+            store: widget.store,
+            initialPath: first,
+            playlist: widget.playlist,
+            controller: PlayerController(),
+          ),
         ),
-      ),
-    );
+      );
+    }
     setState(() {});
   }
 
@@ -132,16 +147,22 @@ class _LibraryScreenState extends State<LibraryScreen> {
       await widget.playlist.addFiles([r.path]);
     }
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
-          state: widget.state,
-          store: widget.store,
-          initialPath: r.path,
-          playlist: widget.playlist,
+    
+    if (widget.onOpenFile != null) {
+      widget.onOpenFile!(r.path);
+    } else {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PlayerScreen(
+            state: widget.state,
+            store: widget.store,
+            initialPath: r.path,
+            playlist: widget.playlist,
+            controller: PlayerController(),
+          ),
         ),
-      ),
-    );
+      );
+    }
     setState(() {});
   }
 

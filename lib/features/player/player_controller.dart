@@ -101,6 +101,8 @@ class PlayerController {
     await player.setRate(speed);
     await player.setVolume((volume * 100).clamp(0, 100).toDouble());
 
+    // Let MediaKit handle subtitles natively
+
     // Wait for duration to be known before initial seek (if any)
     if (startAtSeconds != null && startAtSeconds > 0.2) {
       final gate = Completer<void>();
@@ -141,6 +143,11 @@ class PlayerController {
       player.stream.tracks.map((ts) => ts.subtitle);
   List<SubtitleTrack> get subtitleTracks => player.state.tracks.subtitle;
 
+  // ── Audio tracks
+  Stream<List<AudioTrack>> get audioTracksStream =>
+      player.stream.tracks.map((ts) => ts.audio);
+  List<AudioTrack> get audioTracks => player.state.tracks.audio;
+
   Future<void> disableSubtitles() async =>
       player.setSubtitleTrack(SubtitleTrack.no());
   Future<void> setSubtitleByIndex(int index) async {
@@ -152,6 +159,61 @@ class PlayerController {
 
   Future<void> setExternalSrt(String path) async =>
       player.setSubtitleTrack(SubtitleTrack.uri(path));
+
+  // ── Audio track controls
+  Future<void> setAudioByIndex(int index) async {
+    final tracks = audioTracks;
+    if (index >= 0 && index < tracks.length) {
+      await player.setAudioTrack(tracks[index]);
+    }
+  }
+
+  String getAudioTrackLanguage(int index) {
+    final tracks = audioTracks;
+    if (index >= 0 && index < tracks.length) {
+      final track = tracks[index];
+      // Return language if available, otherwise return a default
+      return track.language?.isNotEmpty == true ? track.language! : 'Unknown';
+    }
+    return 'Unknown';
+  }
+
+  String getAudioTrackTitle(int index) {
+    final tracks = audioTracks;
+    if (index >= 0 && index < tracks.length) {
+      final track = tracks[index];
+      // Return title if available, otherwise return language or default
+      if (track.title?.isNotEmpty == true) {
+        return track.title!;
+      } else if (track.language?.isNotEmpty == true) {
+        return track.language!;
+      }
+    }
+    return 'Audio Track ${index + 1}';
+  }
+
+  // ── Volume Enhancement
+  Future<void> applyVolumeEnhancement(VolumeEnhancement enhancement) async {
+    if (!enhancement.enabled) {
+      // Reset to normal volume - get the base volume from settings
+      final baseVolume = 0.5; // Default volume
+      await player.setVolume((baseVolume * 100).clamp(0, 100).toDouble());
+      return;
+    }
+
+    // Apply volume boost
+    final baseVolume = 0.5; // Base volume from settings
+    final enhancedVolume = (baseVolume * enhancement.boost).clamp(0.0, 1.0);
+    await player.setVolume((enhancedVolume * 100).clamp(0, 100).toDouble());
+
+    // Note: MediaKit doesn't have built-in EQ, but we can simulate some effects
+    // by adjusting the volume based on enhancement settings
+    if (enhancement.normalize) {
+      // Apply normalization by boosting quieter parts
+      final normalizedVolume = (enhancedVolume * 1.2).clamp(0.0, 1.0);
+      await player.setVolume((normalizedVolume * 100).clamp(0, 100).toDouble());
+    }
+  }
 
   // ── Screenshot to Documents/CleanPlayer/Screenshots
   Future<void> takeScreenshot({

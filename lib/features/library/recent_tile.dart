@@ -36,6 +36,19 @@ class RecentTile extends StatelessWidget {
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         onTap: onTap,
+        leading: Container(
+          width: 60,
+          height: 45,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(
+            Icons.videocam_rounded,
+            color: Colors.white70,
+            size: 24,
+          ),
+        ),
         title: Text(
           name,
           maxLines: 2,

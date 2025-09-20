@@ -3,12 +3,17 @@ import 'package:file_picker/file_picker.dart';
 import 'package:media_kit/media_kit.dart';
 
 import 'player_controller.dart';
+import 'subtitle_settings_dialog.dart';
+import '../../core/app_state.dart';
+import '../../core/state_store.dart';
 
 /// Bottom sheet: list internal subs, disable, or load external .srt
 Future<bool> showSubtitleMenu(
   BuildContext context,
-  PlayerController ctrl,
-) async {
+  PlayerController ctrl, {
+  AppStateModel? state,
+  StateStore? store,
+}) async {
   final applied = await showModalBottomSheet<bool>(
     context: context,
     builder: (sheetCtx) {
@@ -54,6 +59,34 @@ Future<bool> showSubtitleMenu(
                   }
                 },
               ),
+              if (state != null && store != null)
+                ListTile(
+                  title: const Text('Subtitle Settings'),
+                  onTap: () async {
+                    Navigator.pop(sheetCtx);
+                    await showDialog(
+                      context: context,
+                      builder: (_) => StatefulBuilder(
+                        builder: (context, setDialogState) => SubtitleSettingsDialog(
+                          currentSettings: state.settings.subtitleSettings,
+                          onSettingsChanged: (newSettings) async {
+                            // Update the state in the store
+                            final updatedState = state.copyWith(
+                              settings: state.settings.copyWith(
+                                subtitleSettings: newSettings,
+                              ),
+                            );
+                            store.updateState(updatedState);
+                            await store.save();
+                            
+                            // Update the dialog state
+                            setDialogState(() {});
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
             ],
           );
         },

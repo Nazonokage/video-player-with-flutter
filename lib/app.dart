@@ -8,6 +8,7 @@ import 'core/app_state.dart';
 
 import 'features/library/library_screen.dart';
 import 'features/player/player_screen.dart';
+import 'features/player/player_controller.dart';
 
 class AppRoot extends StatefulWidget {
   const AppRoot({super.key});
@@ -19,6 +20,8 @@ class AppRoot extends StatefulWidget {
 class _AppRootState extends State<AppRoot> {
   late final Future<StateStore> _storeFuture;
   late final PlaylistService _playlist;
+  String? _currentPlayerPath;
+  PlayerController? _currentPlayerController;
 
   @override
   void initState() {
@@ -28,6 +31,24 @@ class _AppRootState extends State<AppRoot> {
 
     _storeFuture = StateStore.load();
     _playlist = PlaylistService();
+  }
+
+  void _openPlayer(String path) {
+    setState(() {
+      _currentPlayerPath = path;
+      // Create a new player controller for this session
+      _currentPlayerController = PlayerController();
+    });
+  }
+
+  void _goBackToLibrary() {
+    // Dispose the current player controller
+    _currentPlayerController?.dispose();
+    _currentPlayerController = null;
+    
+    setState(() {
+      _currentPlayerPath = null;
+    });
   }
 
   @override
@@ -58,24 +79,21 @@ class _AppRootState extends State<AppRoot> {
             colorScheme: const ColorScheme.dark(),
             useMaterial3: true,
           ),
-          // If you want to jump straight to a last-played file, you can route to PlayerScreen here.
-          // For now, land on LibraryScreen.
-          home: LibraryScreen(state: state, store: store, playlist: _playlist),
-          // Example named route to open a file directly (optional):
-          onGenerateRoute: (settings) {
-            if (settings.name == '/player' && settings.arguments is String) {
-              final path = settings.arguments as String;
-              return MaterialPageRoute(
-                builder: (_) => PlayerScreen(
-                  state: state, // <-- REQUIRED: pass state
+          home: _currentPlayerPath != null && _currentPlayerController != null
+              ? PlayerScreen(
+                  state: state,
                   store: store,
-                  initialPath: path,
+                  initialPath: _currentPlayerPath!,
                   playlist: _playlist,
+                  controller: _currentPlayerController!,
+                  onBackToLibrary: _goBackToLibrary,
+                )
+              : LibraryScreen(
+                  state: state,
+                  store: store,
+                  playlist: _playlist,
+                  onOpenFile: _openPlayer,
                 ),
-              );
-            }
-            return null;
-          },
         );
       },
     );

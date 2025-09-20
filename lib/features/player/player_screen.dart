@@ -2,7 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit_video/media_kit_video.dart' show Video;
+import 'package:media_kit_video/media_kit_video.dart' show Video, SubtitleViewConfiguration;
 
 import '../../core/app_state.dart';
 import '../../core/state_store.dart';
@@ -17,12 +17,17 @@ import 'player_controller.dart';
 import 'overlay_subtitle.dart';
 import 'playlist_modal.dart';
 import 'help_dialog.dart';
+import 'volume_enhancement_dialog.dart';
+import 'audio_track_dialog.dart';
+import '../settings/settings_sheet.dart';
 
 class PlayerScreen extends StatefulWidget {
   final AppStateModel state;
   final StateStore store;
   final String initialPath;
   final PlaylistService playlist;
+  final PlayerController controller;
+  final VoidCallback? onBackToLibrary;
 
   const PlayerScreen({
     super.key,
@@ -30,6 +35,8 @@ class PlayerScreen extends StatefulWidget {
     required this.store,
     required this.initialPath,
     required this.playlist,
+    required this.controller,
+    this.onBackToLibrary,
   });
 
   @override
@@ -38,7 +45,6 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen>
     with SingleTickerProviderStateMixin {
-  late final PlayerController ctrl;
   final GlobalKey _videoRepaintKey = GlobalKey();
 
   late double _speed;
@@ -46,17 +52,21 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _isPlaying = false; // Track playing state locally
 
   String? _osdText;
+  late SubtitleSettings _subtitleSettings;
+  late VolumeEnhancement _volumeEnhancement;
   late final AnimationController _fadeCtrl;
   Timer? _saveTimer;
   bool _showRemaining = false;
   StreamSubscription<bool>? _playingSubscription;
+  StreamSubscription<AppStateModel>? _stateSubscription;
 
   @override
   void initState() {
     super.initState();
-    ctrl = PlayerController();
     _speed = widget.state.settings.speed;
     _volume = 0.5; // start at 50%
+    _subtitleSettings = widget.state.settings.subtitleSettings;
+    _volumeEnhancement = widget.state.settings.volumeEnhancement;
 
     _fadeCtrl = AnimationController(
       vsync: this,
@@ -69,13 +79,36 @@ class _PlayerScreenState extends State<PlayerScreen>
       const Duration(seconds: 5),
       (_) => _saveProgress(),
     );
+
+    // Listen to state store changes for real-time updates
+    _stateSubscription = widget.store.stateStream.listen((newState) {
+      if (mounted) {
+        setState(() {
+          _subtitleSettings = newState.settings.subtitleSettings;
+          _volumeEnhancement = newState.settings.volumeEnhancement;
+        });
+      }
+    });
   }
+
+  @override
+  void didUpdateWidget(PlayerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Check if subtitle or volume settings changed
+    if (oldWidget.state.settings.subtitleSettings != widget.state.settings.subtitleSettings ||
+        oldWidget.state.settings.volumeEnhancement != widget.state.settings.volumeEnhancement) {
+      _subtitleSettings = widget.state.settings.subtitleSettings;
+      _volumeEnhancement = widget.state.settings.volumeEnhancement;
+      if (mounted) setState(() {});
+    }
+  }
+
 
   @override
   void dispose() {
     _saveTimer?.cancel();
     _playingSubscription?.cancel();
-    ctrl.dispose();
+    _stateSubscription?.cancel();
     _fadeCtrl.dispose();
     super.dispose();
   }
@@ -83,7 +116,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   // ── Setup player state listener
   void _setupPlayerListener() {
     _playingSubscription?.cancel();
-    _playingSubscription = ctrl.player.stream.playing.listen((playing) {
+    _playingSubscription = widget.controller.player.stream.playing.listen((playing) {
       if (mounted) {
         setState(() {
           _isPlaying = playing;
@@ -105,7 +138,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   // ── Open + resume
   Future<void> _open(String path) async {
-    await ctrl.openAndResume(
+    await widget.controller.openAndResume(
       path: path,
       state: widget.state,
       playlist: widget.playlist,
@@ -121,10 +154,10 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   // ── Persist progress
   Future<void> _saveProgress() =>
-      ctrl.saveProgress(widget.store, fallbackPath: widget.initialPath);
+      widget.controller.saveProgress(widget.store, fallbackPath: widget.initialPath);
 
   // ── UI actions
-  void _togglePlayPause() => ctrl.togglePlayPause();
+  void _togglePlayPause() => widget.controller.togglePlayPause();
 
   Future<void> _playNext() async {
     final next = widget.playlist.next();
@@ -144,10 +177,54 @@ class _PlayerScreenState extends State<PlayerScreen>
         opaque: true,
         fullscreenDialog: true,
         pageBuilder: (_, __, ___) =>
-            _FullscreenPage(ctrl: ctrl, repaintKey: _videoRepaintKey),
+            _FullscreenPage(
+              ctrl: widget.controller, 
+              repaintKey: _videoRepaintKey,
+              subtitleSettings: widget.state.settings.subtitleSettings,
+            ),
       ),
     );
     if (mounted) setState(() {});
+  }
+
+  Future<void> _goBackToLibrary() async {
+    if (widget.onBackToLibrary != null) {
+      // Save current progress before going back
+      await _saveProgress();
+      
+      // Stop the player
+      await widget.controller.player.stop();
+      
+      // Call the callback to go back to library
+      widget.onBackToLibrary!();
+    }
+  }
+
+  Future<void> _showVolumeEnhancementDialog() async {
+    await showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setDialogState) => VolumeEnhancementDialog(
+          currentSettings: _volumeEnhancement,
+          onSettingsChanged: (newSettings) async {
+            // Update the state in the store
+            final updatedState = widget.state.copyWith(
+              settings: widget.state.settings.copyWith(
+                volumeEnhancement: newSettings,
+              ),
+            );
+            widget.store.updateState(updatedState);
+            await widget.store.save();
+            
+            // Apply the enhancement immediately
+            await widget.controller.applyVolumeEnhancement(newSettings);
+            
+            // Update the dialog state
+            setDialogState(() {});
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -156,7 +233,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       shortcuts: defaultKeyMap,
       child: Actions(
         // In the buildActions method call in player_screen.dart, add the onHelp parameter:
-        actions: ctrl.buildActions(
+        actions: widget.controller.buildActions(
           onTogglePlayPause: _togglePlayPause,
           onFullscreen: _toggleFullscreen,
           onOsd: _flashOsd,
@@ -186,6 +263,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             body: Column(
               children: [
                 TopBar(
+                  onLogoClick: _goBackToLibrary,
                   onOpenPlaylist: () async {
                     await showDialog(
                       context: context,
@@ -213,7 +291,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                       ),
                     );
                   },
-                  onOpenSubtitles: () => showSubtitleMenu(context, ctrl),
+                  onOpenSubtitles: () => showSubtitleMenu(
+                    context, 
+                    widget.controller, 
+                    state: widget.state, 
+                    store: widget.store,
+                  ),
+                  onVolumeEnhancement: () => _showVolumeEnhancementDialog(),
+                  onOpenAudioTracks: () => showAudioTrackDialog(context, widget.controller),
+                  onOpenSettings: () => showDialog(
+                    context: context,
+                    builder: (_) => const SettingsSheet(),
+                  ),
                   onOpenHelp: () => showDialog(
                     context: context,
                     builder: (_) => const HelpDialog(),
@@ -228,8 +317,21 @@ class _PlayerScreenState extends State<PlayerScreen>
                           child: RepaintBoundary(
                             key: _videoRepaintKey,
                             child: Video(
-                              controller: ctrl.video,
+                              controller: widget.controller.video,
                               controls: null,
+                              subtitleViewConfiguration: SubtitleViewConfiguration(
+                                style: TextStyle(
+                                  height: _subtitleSettings.height,
+                                  fontSize: _subtitleSettings.fontSize,
+                                  letterSpacing: _subtitleSettings.letterSpacing,
+                                  wordSpacing: _subtitleSettings.wordSpacing,
+                                  color: _subtitleSettings.textColor,
+                                  fontWeight: _subtitleSettings.fontWeight,
+                                  backgroundColor: _subtitleSettings.backgroundColor,
+                                ),
+                                textAlign: _subtitleSettings.textAlign,
+                                padding: _subtitleSettings.padding,
+                              ),
                             ),
                           ),
                         ),
@@ -269,11 +371,11 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
                 // Seekbar
                 StreamBuilder<Duration>(
-                  stream: ctrl.positionStream,
+                  stream: widget.controller.positionStream,
                   initialData: Duration.zero,
                   builder: (_, snap) {
                     final pos = snap.data ?? Duration.zero;
-                    final dur = ctrl.player.state.duration;
+                    final dur = widget.controller.player.state.duration;
                     return Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -287,7 +389,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                             setState(() => _showRemaining = !_showRemaining),
                         onChanged: (t) {
                           final targetMs = (dur.inMilliseconds * t).toInt();
-                          ctrl.player.seek(Duration(milliseconds: targetMs));
+                          widget.controller.player.seek(Duration(milliseconds: targetMs));
                         },
                       ),
                     );
@@ -304,17 +406,16 @@ class _PlayerScreenState extends State<PlayerScreen>
                     speed: _speed,
                     onSpeed: (v) async {
                       setState(() => _speed = v);
-                      await ctrl.player.setRate(v);
+                      await widget.controller.player.setRate(v);
                     },
                     volume: _volume,
                     onVolume: (v) async {
                       setState(() => _volume = v);
-                      await ctrl.player.setVolume(
+                      await widget.controller.player.setVolume(
                         (v * 100).clamp(0, 100).toDouble(),
                       );
                       _flashOsd('Vol ${(v * 100).round()}%');
                     },
-                    onToggleSubtitles: () => showSubtitleMenu(context, ctrl),
                     onFullscreen: _toggleFullscreen,
                   ),
                 ),
@@ -331,8 +432,13 @@ class _PlayerScreenState extends State<PlayerScreen>
 class _FullscreenPage extends StatefulWidget {
   final PlayerController ctrl;
   final GlobalKey repaintKey;
+  final SubtitleSettings subtitleSettings;
 
-  const _FullscreenPage({required this.ctrl, required this.repaintKey});
+  const _FullscreenPage({
+    required this.ctrl, 
+    required this.repaintKey,
+    required this.subtitleSettings,
+  });
 
   @override
   State<_FullscreenPage> createState() => _FullscreenPageState();
@@ -413,7 +519,23 @@ class _FullscreenPageState extends State<_FullscreenPage>
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: Video(controller: widget.ctrl.video, controls: null),
+                  child: Video(
+                    controller: widget.ctrl.video, 
+                    controls: null,
+                    subtitleViewConfiguration: SubtitleViewConfiguration(
+                      style: TextStyle(
+                        height: widget.subtitleSettings.height,
+                        fontSize: widget.subtitleSettings.fontSize,
+                        letterSpacing: widget.subtitleSettings.letterSpacing,
+                        wordSpacing: widget.subtitleSettings.wordSpacing,
+                        color: widget.subtitleSettings.textColor,
+                        fontWeight: widget.subtitleSettings.fontWeight,
+                        backgroundColor: widget.subtitleSettings.backgroundColor,
+                      ),
+                      textAlign: widget.subtitleSettings.textAlign,
+                      padding: widget.subtitleSettings.padding,
+                    ),
+                  ),
                 ),
                 if (_osd != null)
                   Positioned(

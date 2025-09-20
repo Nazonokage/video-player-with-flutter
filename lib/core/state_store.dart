@@ -1,13 +1,22 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'app_state.dart';
 
 class StateStore {
-  AppStateModel state;
+  AppStateModel _state;
   bool recoveredFromCorruption;
+  final _stateController = StreamController<AppStateModel>.broadcast();
 
-  StateStore(this.state, {this.recoveredFromCorruption = false});
+  StateStore(this._state, {this.recoveredFromCorruption = false});
+
+  AppStateModel get state => _state;
+  Stream<AppStateModel> get stateStream => _stateController.stream;
+
+  void _notifyStateChange() {
+    _stateController.add(_state);
+  }
 
   static const _fileName = 'app_state.json';
 
@@ -48,7 +57,13 @@ class StateStore {
 
   Future<void> save() async {
     final f = await _file();
-    await f.writeAsString(encodeState(state));
+    await f.writeAsString(encodeState(_state));
+    _notifyStateChange();
+  }
+
+  void updateState(AppStateModel newState) {
+    _state = newState;
+    _notifyStateChange();
   }
 
   Future<void> upsertRecent({
@@ -56,7 +71,7 @@ class StateStore {
     required int positionMs,
     required int durationMs,
   }) async {
-    state = state.upsertRecent(
+    _state = _state.upsertRecent(
       path: path,
       positionMs: positionMs,
       durationMs: durationMs,
@@ -65,7 +80,7 @@ class StateStore {
   }
 
   Future<void> clearRecents() async {
-    state = state.clearRecents();
+    _state = _state.clearRecents();
     await save();
   }
 
@@ -73,12 +88,16 @@ class StateStore {
     // Remove by normalized path to avoid slash / case variations.
     String norm(String s) => s.replaceAll('\\', '/').toLowerCase();
 
-    final filtered = state.recents
+    final filtered = _state.recents
         .where((r) => norm(r.path) != norm(path))
         .toList();
-    if (filtered.length == state.recents.length) return; // nothing to remove
+    if (filtered.length == _state.recents.length) return; // nothing to remove
 
-    state = state.copyWith(recents: filtered);
+    _state = _state.copyWith(recents: filtered);
     await save();
+  }
+
+  void dispose() {
+    _stateController.close();
   }
 }
