@@ -1,0 +1,3 @@
+- [x] Set _currentFileName = p.basename(widget.initialPath) in initState
+- [x] Pass fileName: _currentFileName to TopBar widget
+- [x] Modify _setupPlayerListener to flash 'I' OSD when playing starts

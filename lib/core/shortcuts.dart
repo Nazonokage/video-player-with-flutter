@@ -52,6 +52,16 @@ class HelpIntent extends Intent {
   const HelpIntent();
 }
 
+// NEW: Show OSD info intent for I key
+class ShowOsdInfoIntent extends Intent {
+  const ShowOsdInfoIntent();
+}
+
+// NEW: Mute/unmute intent for M key
+class MuteIntent extends Intent {
+  const MuteIntent();
+}
+
 final Map<LogicalKeySet, Intent> defaultKeyMap = {
   // Space = play/pause
   LogicalKeySet(LogicalKeyboardKey.space): const TogglePlayIntent(),
@@ -82,6 +92,12 @@ final Map<LogicalKeySet, Intent> defaultKeyMap = {
 
   // NEW: F1 for help
   LogicalKeySet(LogicalKeyboardKey.f1): const HelpIntent(),
+
+  // NEW: I for show OSD info
+  LogicalKeySet(LogicalKeyboardKey.keyI): const ShowOsdInfoIntent(),
+
+  // NEW: M for mute/unmute
+  LogicalKeySet(LogicalKeyboardKey.keyM): const MuteIntent(),
 
   LogicalKeySet(LogicalKeyboardKey.digit1): const NumberSeekIntent(0.10),
   LogicalKeySet(LogicalKeyboardKey.digit2): const NumberSeekIntent(0.20),

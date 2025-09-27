@@ -2,7 +2,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:media_kit_video/media_kit_video.dart' show Video, SubtitleViewConfiguration;
+import 'package:media_kit_video/media_kit_video.dart'
+    show Video, SubtitleViewConfiguration;
+import 'package:path/path.dart' as p;
 
 import '../../core/app_state.dart';
 import '../../core/state_store.dart';
@@ -50,6 +52,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   late double _speed;
   late double _volume;
   bool _isPlaying = false; // Track playing state locally
+  late String _currentFileName;
 
   String? _osdText;
   late SubtitleSettings _subtitleSettings;
@@ -67,6 +70,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _volume = 0.5; // start at 50%
     _subtitleSettings = widget.state.settings.subtitleSettings;
     _volumeEnhancement = widget.state.settings.volumeEnhancement;
+    _currentFileName = p.basename(widget.initialPath);
 
     _fadeCtrl = AnimationController(
       vsync: this,
@@ -95,14 +99,15 @@ class _PlayerScreenState extends State<PlayerScreen>
   void didUpdateWidget(PlayerScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Check if subtitle or volume settings changed
-    if (oldWidget.state.settings.subtitleSettings != widget.state.settings.subtitleSettings ||
-        oldWidget.state.settings.volumeEnhancement != widget.state.settings.volumeEnhancement) {
+    if (oldWidget.state.settings.subtitleSettings !=
+            widget.state.settings.subtitleSettings ||
+        oldWidget.state.settings.volumeEnhancement !=
+            widget.state.settings.volumeEnhancement) {
       _subtitleSettings = widget.state.settings.subtitleSettings;
       _volumeEnhancement = widget.state.settings.volumeEnhancement;
       if (mounted) setState(() {});
     }
   }
-
 
   @override
   void dispose() {
@@ -116,11 +121,17 @@ class _PlayerScreenState extends State<PlayerScreen>
   // ── Setup player state listener
   void _setupPlayerListener() {
     _playingSubscription?.cancel();
-    _playingSubscription = widget.controller.player.stream.playing.listen((playing) {
+    _playingSubscription = widget.controller.player.stream.playing.listen((
+      playing,
+    ) {
+      bool wasPlaying = _isPlaying;
       if (mounted) {
         setState(() {
           _isPlaying = playing;
         });
+      }
+      if (playing && !wasPlaying) {
+        _flashOsd(_currentFileName);
       }
     });
   }
@@ -138,6 +149,8 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   // ── Open + resume
   Future<void> _open(String path) async {
+    _currentFileName = p.basename(path); // Update filename
+
     await widget.controller.openAndResume(
       path: path,
       state: widget.state,
@@ -149,12 +162,23 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Setup listener after player is initialized
     _setupPlayerListener();
 
-    if (mounted) setState(() {});
+    // Check initial playing state to flash filename if already playing on start
+    if (mounted) {
+      final currentPlaying = widget.controller.player.state.playing;
+      setState(() {
+        _isPlaying = currentPlaying;
+      });
+      if (currentPlaying) {
+        _flashOsd(_currentFileName);
+      }
+    }
   }
 
   // ── Persist progress
-  Future<void> _saveProgress() =>
-      widget.controller.saveProgress(widget.store, fallbackPath: widget.initialPath);
+  Future<void> _saveProgress() => widget.controller.saveProgress(
+    widget.store,
+    fallbackPath: widget.initialPath,
+  );
 
   // ── UI actions
   void _togglePlayPause() => widget.controller.togglePlayPause();
@@ -176,12 +200,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       PageRouteBuilder(
         opaque: true,
         fullscreenDialog: true,
-        pageBuilder: (_, __, ___) =>
-            _FullscreenPage(
-              ctrl: widget.controller, 
-              repaintKey: _videoRepaintKey,
-              subtitleSettings: widget.state.settings.subtitleSettings,
-            ),
+        pageBuilder: (_, __, ___) => _FullscreenPage(
+          ctrl: widget.controller,
+          repaintKey: _videoRepaintKey,
+          subtitleSettings: widget.state.settings.subtitleSettings,
+        ),
       ),
     );
     if (mounted) setState(() {});
@@ -191,10 +214,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (widget.onBackToLibrary != null) {
       // Save current progress before going back
       await _saveProgress();
-      
+
       // Stop the player
       await widget.controller.player.stop();
-      
+
       // Call the callback to go back to library
       widget.onBackToLibrary!();
     }
@@ -215,10 +238,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             );
             widget.store.updateState(updatedState);
             await widget.store.save();
-            
+
             // Apply the enhancement immediately
             await widget.controller.applyVolumeEnhancement(newSettings);
-            
+
             // Update the dialog state
             setDialogState(() {});
           },
@@ -263,6 +286,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             body: Column(
               children: [
                 TopBar(
+                  fileName: _currentFileName,
                   onLogoClick: _goBackToLibrary,
                   onOpenPlaylist: () async {
                     await showDialog(
@@ -292,13 +316,14 @@ class _PlayerScreenState extends State<PlayerScreen>
                     );
                   },
                   onOpenSubtitles: () => showSubtitleMenu(
-                    context, 
-                    widget.controller, 
-                    state: widget.state, 
+                    context,
+                    widget.controller,
+                    state: widget.state,
                     store: widget.store,
                   ),
                   onVolumeEnhancement: () => _showVolumeEnhancementDialog(),
-                  onOpenAudioTracks: () => showAudioTrackDialog(context, widget.controller),
+                  onOpenAudioTracks: () =>
+                      showAudioTrackDialog(context, widget.controller),
                   onOpenSettings: () => showDialog(
                     context: context,
                     builder: (_) => const SettingsSheet(),
@@ -319,19 +344,23 @@ class _PlayerScreenState extends State<PlayerScreen>
                             child: Video(
                               controller: widget.controller.video,
                               controls: null,
-                              subtitleViewConfiguration: SubtitleViewConfiguration(
-                                style: TextStyle(
-                                  height: _subtitleSettings.height,
-                                  fontSize: _subtitleSettings.fontSize,
-                                  letterSpacing: _subtitleSettings.letterSpacing,
-                                  wordSpacing: _subtitleSettings.wordSpacing,
-                                  color: _subtitleSettings.textColor,
-                                  fontWeight: _subtitleSettings.fontWeight,
-                                  backgroundColor: _subtitleSettings.backgroundColor,
-                                ),
-                                textAlign: _subtitleSettings.textAlign,
-                                padding: _subtitleSettings.padding,
-                              ),
+                              subtitleViewConfiguration:
+                                  SubtitleViewConfiguration(
+                                    style: TextStyle(
+                                      height: _subtitleSettings.height,
+                                      fontSize: _subtitleSettings.fontSize,
+                                      letterSpacing:
+                                          _subtitleSettings.letterSpacing,
+                                      wordSpacing:
+                                          _subtitleSettings.wordSpacing,
+                                      color: _subtitleSettings.textColor,
+                                      fontWeight: _subtitleSettings.fontWeight,
+                                      backgroundColor:
+                                          _subtitleSettings.backgroundColor,
+                                    ),
+                                    textAlign: _subtitleSettings.textAlign,
+                                    padding: _subtitleSettings.padding,
+                                  ),
                             ),
                           ),
                         ),
@@ -389,7 +418,9 @@ class _PlayerScreenState extends State<PlayerScreen>
                             setState(() => _showRemaining = !_showRemaining),
                         onChanged: (t) {
                           final targetMs = (dur.inMilliseconds * t).toInt();
-                          widget.controller.player.seek(Duration(milliseconds: targetMs));
+                          widget.controller.player.seek(
+                            Duration(milliseconds: targetMs),
+                          );
                         },
                       ),
                     );
@@ -435,7 +466,7 @@ class _FullscreenPage extends StatefulWidget {
   final SubtitleSettings subtitleSettings;
 
   const _FullscreenPage({
-    required this.ctrl, 
+    required this.ctrl,
     required this.repaintKey,
     required this.subtitleSettings,
   });
@@ -520,7 +551,7 @@ class _FullscreenPageState extends State<_FullscreenPage>
               children: [
                 Positioned.fill(
                   child: Video(
-                    controller: widget.ctrl.video, 
+                    controller: widget.ctrl.video,
                     controls: null,
                     subtitleViewConfiguration: SubtitleViewConfiguration(
                       style: TextStyle(
@@ -530,7 +561,8 @@ class _FullscreenPageState extends State<_FullscreenPage>
                         wordSpacing: widget.subtitleSettings.wordSpacing,
                         color: widget.subtitleSettings.textColor,
                         fontWeight: widget.subtitleSettings.fontWeight,
-                        backgroundColor: widget.subtitleSettings.backgroundColor,
+                        backgroundColor:
+                            widget.subtitleSettings.backgroundColor,
                       ),
                       textAlign: widget.subtitleSettings.textAlign,
                       padding: widget.subtitleSettings.padding,

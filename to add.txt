@@ -1,0 +1,48 @@
+Prototype Project – QA Test Log (All Pending Features)
+======================================================
+
+📝 Reports & Required Features (Prioritized)
+--------------------------------------------
+
+[HIGH] OSD / File Info:
+implemented - Current file name should always be visible on player UI. 
+implemented - Auto-show OSD info at video start (especially when skipping to next/prev).
+
+[HIGH] Subtitles:
+- Subtitles work in windowed mode, but in fullscreen changes require program restart.
+- Duplication issue:
+  - When video already has built-in subtitles (signs/text), external subtitles overlap → looks like double subs.
+  - Works, but not seamless → needs logic to handle built-in + external subs better.
+
+[MEDIUM] Subtitles – Customization:
+- Need subtitle background customization option.
+
+[MEDIUM] Preferences:
+- Save all latest settings (persist after program restart).
+
+[MEDIUM] Thumbnail System:
+- On exit/close, the player should automatically capture a screenshot of the last displayed frame.
+- Save this screenshot locally as a thumbnail (e.g., video_name_thumb.jpg).
+- Use saved thumbnails when loading recent list or playlists.
+- Purpose: prevent lingering sounds from recent videos by rendering static thumbnails instead of loading the video directly.
+
+[LOW] UI / Controls:
+- Decrease control bar and top bar height → allow more video space.
+- Mouse auto-disappears after 3 seconds when idle.
+
+[LOW] Playback:
+- Playlist plays next video automatically after finishing.
+
+[LOW] Interactions:
+- Right-click menu for settings.
+ implemented - Keyboard shortcuts:
+  - I → Show OSD info.
+  - M → Mute/unmute.
+
+[LOW] System / Power Management:
+- Consider feature to prevent PC from sleeping while video is playing (optional toggle).
+
+📌 Notes
+---------
+- All items above are not yet implemented and required for the prototype to move forward.
+- Prioritization (High/Medium/Low) is suggested to guide development order.

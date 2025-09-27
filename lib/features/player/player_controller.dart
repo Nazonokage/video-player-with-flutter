@@ -19,6 +19,7 @@ class PlayerController {
   final _posStream = StreamController<Duration>.broadcast();
 
   String? currentPath;
+  double _previousVolume = 0.5; // Track previous volume for mute/unmute
 
   PlayerController() {
     video = VideoController(player);
@@ -352,6 +353,29 @@ class PlayerController {
             final ms = (dur.inMilliseconds * i.fraction).toInt();
             player.seek(Duration(milliseconds: ms));
             onOsd('Seek → ${fmtTime(Duration(milliseconds: ms))}');
+          }
+          return null;
+        },
+      ),
+      ShowOsdInfoIntent: CallbackAction<ShowOsdInfoIntent>(
+        onInvoke: (_) {
+          final name = currentPath != null
+              ? p.basename(currentPath!)
+              : 'No file';
+          onOsd(name);
+          return null;
+        },
+      ),
+      MuteIntent: CallbackAction<MuteIntent>(
+        onInvoke: (_) {
+          final currentVol = player.state.volume / 100.0;
+          if (currentVol > 0.0) {
+            _previousVolume = currentVol;
+            player.setVolume(0.0);
+            onOsd('Muted');
+          } else {
+            player.setVolume((_previousVolume * 100).toDouble());
+            onOsd('Unmuted');
           }
           return null;
         },

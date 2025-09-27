@@ -205,7 +205,7 @@ class ControlsBar extends StatelessWidget {
     );
 
     return Container(
-      height: 40,
+      height: 30,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: Colors.black.withAlpha(100),

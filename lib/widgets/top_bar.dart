@@ -8,6 +8,7 @@ class TopBar extends StatelessWidget {
   final VoidCallback onOpenAudioTracks;
   final VoidCallback onOpenSettings;
   final VoidCallback? onLogoClick;
+  final String? fileName;
 
   const TopBar({
     super.key,
@@ -18,6 +19,7 @@ class TopBar extends StatelessWidget {
     required this.onOpenAudioTracks,
     required this.onOpenSettings,
     this.onLogoClick,
+    this.fileName,
   });
 
   @override
@@ -40,7 +42,7 @@ class TopBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(4),
-                color: onLogoClick != null 
+                color: onLogoClick != null
                     ? Colors.white.withValues(alpha: 0.1)
                     : Colors.transparent,
               ),
@@ -55,6 +57,19 @@ class TopBar extends StatelessWidget {
               ),
             ),
           ),
+          if (fileName != null) ...[
+            const SizedBox(width: 16),
+            Text(
+              fileName!.length > 20
+                  ? '${fileName!.substring(0, 25)}...'
+                  : fileName!,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
           const Spacer(),
           _MenuBtn('Playlist', onTap: onOpenPlaylist),
           sep,
